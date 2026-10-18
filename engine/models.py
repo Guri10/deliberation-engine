@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-StopReason = Literal["satisfied", "round_cap"]
+StopReason = Literal["satisfied", "critic_exhausted", "round_cap"]
 ChallengeStateValue = Literal["open", "closed", "escalated"]
 
 

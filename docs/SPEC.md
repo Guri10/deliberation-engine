@@ -68,7 +68,7 @@ Rules:
 
 Two checks run on every agent reply. Each one gets one retry.
 
-1. **Shape check:** the reply must match the Pydantic model. If the retry also fails, the run stops with an error and the trace so far is saved.
+1. **Shape check:** the reply must match the Pydantic model. For the Critic, it must also give a state for exactly the Challenges that are open. If the retry also fails, the run stops with an error and the trace so far is saved.
 2. **Consistency check (Critic only):** these three contradictions count as invalid output:
    - `SATISFIED` while a Challenge is still `open`.
    - `SATISFIED` in round 1.

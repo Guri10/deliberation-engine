@@ -1,11 +1,12 @@
 """Run one deliberation: python main.py [--request "..." | --request-file path]"""
 
 import argparse
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from engine.agents import AnthropicClient
+from engine.agents import AgentReplyError, AnthropicClient
 from engine.config import DEFAULT_FEATURE_REQUEST
 from engine.deliberation import run_deliberation
 
@@ -27,7 +28,10 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("the Feature Request is empty")
 
     load_dotenv()
-    result = run_deliberation(feature_request, AnthropicClient())
+    try:
+        result = run_deliberation(feature_request, AnthropicClient())
+    except AgentReplyError as error:
+        sys.exit(f"Run stopped: {error}. Trace so far saved to {error.run_dir}")
     print(f"Stop reason: {result.stop_reason}. Saved to {result.run_dir}")
 
 

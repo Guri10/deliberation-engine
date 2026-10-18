@@ -18,6 +18,10 @@ def _scope(scope_in: list[str], scope_out: list[str]) -> str:
     return f"**In scope:**\n{_bullets(scope_in)}\n**Out of scope:**\n{_bullets(scope_out)}"
 
 
+def notes_block(notes: list[str]) -> str:
+    return f"**Notes:**\n{_bullets(notes)}"
+
+
 def _response(r: Response) -> str:
     quote = f' (quoting "{r.quote}")' if r.quote else ""
     return f"{r.challenge_id} {r.type}{quote}: {r.text}"
@@ -42,7 +46,7 @@ def format_round(round_: Round) -> str:
         ]),
         "**New challenges:**",
         _bullets([f"{c.id} [{c.type}] on {c.target}: {c.text}" for c in critic_turn.new_challenges]),
-        *([f"**Notes:**\n{_bullets(round_.notes)}"] if round_.notes else []),
+        *([notes_block(round_.notes)] if round_.notes else []),
         "",
     ])
 
@@ -71,19 +75,20 @@ def render_decision(decision: DecisionDocument, stop_reason: StopReason, rounds_
     ])
 
 
-def write_run(
-    runs_dir: Path,
-    feature_request: str,
-    rounds: list[Round],
-    stop_reason: StopReason,
-    decision: DecisionDocument,
-) -> Path:
+def new_run_dir(runs_dir: Path) -> Path:
     run_dir = runs_dir / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     run_dir.mkdir(parents=True)
+    return run_dir
+
+
+def write_trace(run_dir: Path, feature_request: str, rounds: list[Round], footer: list[str]) -> None:
+    """Write every finished Round, then run-level lines such as the stop reason or an error."""
     trace = [f"# Deliberation trace\n\n**Feature request:** {feature_request}\n"]
     trace += [format_round(r) for r in rounds]
-    trace.append(f"**Stop reason:** {stop_reason}\n")
+    trace += [f"{line}\n" for line in footer]
     (run_dir / "trace.md").write_text("\n".join(trace))
+
+
+def write_decision(run_dir: Path, decision: DecisionDocument, stop_reason: StopReason, rounds_run: int) -> None:
     (run_dir / "decision_document.json").write_text(decision.model_dump_json(indent=2))
-    (run_dir / "decision_document.md").write_text(render_decision(decision, stop_reason, len(rounds)))
-    return run_dir
+    (run_dir / "decision_document.md").write_text(render_decision(decision, stop_reason, rounds_run))
