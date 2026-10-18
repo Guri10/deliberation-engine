@@ -3,7 +3,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from engine.models import DecisionDocument, Round, StopReason, SuccessCriterion
+from engine.models import DecisionDocument, Response, Round, StopReason, SuccessCriterion
 
 
 def _bullets(items: list[str]) -> str:
@@ -18,6 +18,11 @@ def _scope(scope_in: list[str], scope_out: list[str]) -> str:
     return f"**In scope:**\n{_bullets(scope_in)}\n**Out of scope:**\n{_bullets(scope_out)}"
 
 
+def _response(r: Response) -> str:
+    quote = f' (quoting "{r.quote}")' if r.quote else ""
+    return f"{r.challenge_id} {r.type}{quote}: {r.text}"
+
+
 def format_round(round_: Round) -> str:
     proposal, critic_turn = round_.proposal, round_.critic_turn
     return "\n".join([
@@ -27,9 +32,17 @@ def format_round(round_: Round) -> str:
         _scope(proposal.scope_in, proposal.scope_out),
         f"**Assumptions:**\n{_bullets([f'{a.id}: {a.statement}' for a in proposal.assumptions])}",
         f"**Success criteria:**\n{_criteria(proposal.success_criteria)}",
+        f"**Responses:**\n{_bullets([_response(r) for r in proposal.responses])}",
         "",
         f"### Critic: {critic_turn.verdict}",
-        _bullets([f"{c.id} (on {c.target}): {c.text}" for c in critic_turn.challenges]),
+        "**Challenge states:**",
+        _bullets([
+            f"{s.challenge_id}: {s.state}" + (f" ({s.reason})" if s.reason else "")
+            for s in critic_turn.challenge_states
+        ]),
+        "**New challenges:**",
+        _bullets([f"{c.id} [{c.type}] on {c.target}: {c.text}" for c in critic_turn.new_challenges]),
+        *([f"**Notes:**\n{_bullets(round_.notes)}"] if round_.notes else []),
         "",
     ])
 

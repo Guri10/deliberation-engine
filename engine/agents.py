@@ -8,7 +8,7 @@ from anthropic.types import MessageParam
 from pydantic import BaseModel
 
 from engine.config import MAX_TOKENS, MODEL, PROMPTS_DIR, SYSTEM_CONTEXT
-from engine.models import Challenge, CriticTurn, DecisionDocument, ProposerTurn, Round
+from engine.models import Challenge, CriticTurn, DecisionDocument, ProposerTurn, Round, TrackedChallenge
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -44,22 +44,22 @@ def _ask(client: ModelClient, agent: str, content: str, output_model: type[T]) -
     return output_model.model_validate_json(raw)
 
 
-def _challenges_json(challenges: list[Challenge]) -> str:
-    return json.dumps([c.model_dump() for c in challenges], indent=2)
+def _json(items: list[Challenge] | list[TrackedChallenge] | list[Round]) -> str:
+    return json.dumps([item.model_dump() for item in items], indent=2)
 
 
 def propose(
     client: ModelClient,
     feature_request: str,
     last_proposal: ProposerTurn | None,
-    challenges: list[Challenge],
+    open_challenges: list[Challenge],
 ) -> ProposerTurn:
     content = f"Feature request:\n{feature_request}"
     if last_proposal is not None:
         content += (
             f"\n\nYour last proposal:\n{last_proposal.model_dump_json(indent=2)}"
-            f"\n\nThe Critic's challenges:\n{_challenges_json(challenges)}"
-            "\n\nWrite your updated proposal."
+            f"\n\nThe Critic's open challenges:\n{_json(open_challenges)}"
+            "\n\nWrite your updated proposal, with one response for each open challenge."
         )
     return _ask(client, "proposer", content, ProposerTurn)
 
@@ -69,18 +69,25 @@ def criticize(
     feature_request: str,
     round_number: int,
     proposal: ProposerTurn,
-    past_challenges: list[Challenge],
+    past_challenges: list[TrackedChallenge],
 ) -> CriticTurn:
+    open_ids = [t.challenge.id for t in past_challenges if t.state == "open"]
     content = (
         f"Feature request:\n{feature_request}"
         f"\n\nThis is round {round_number}."
-        f"\n\nCurrent proposal:\n{proposal.model_dump_json(indent=2)}"
-        f"\n\nChallenges you raised in earlier rounds:\n{_challenges_json(past_challenges)}"
+        f"\n\nCurrent proposal, with the Proposer's responses:\n{proposal.model_dump_json(indent=2)}"
+        f"\n\nChallenges you raised in earlier rounds, with their states:\n{_json(past_challenges)}"
+        f"\n\nGive a challenge state for each of these open challenges: {', '.join(open_ids) or '(none)'}."
     )
     return _ask(client, "critic", content, CriticTurn)
 
 
-def summarize(client: ModelClient, feature_request: str, rounds: list[Round]) -> DecisionDocument:
-    transcript = json.dumps([r.model_dump() for r in rounds], indent=2)
-    content = f"Feature request:\n{feature_request}\n\nFull deliberation transcript:\n{transcript}"
+def summarize(
+    client: ModelClient, feature_request: str, rounds: list[Round], challenges: list[TrackedChallenge]
+) -> DecisionDocument:
+    content = (
+        f"Feature request:\n{feature_request}"
+        f"\n\nFull deliberation transcript:\n{_json(rounds)}"
+        f"\n\nEvery challenge with its final state:\n{_json(challenges)}"
+    )
     return _ask(client, "summarizer", content, DecisionDocument)
