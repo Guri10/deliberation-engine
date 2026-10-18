@@ -114,8 +114,9 @@ Decision Document sections, in order:
 ## Repo layout (Q24, Q25, Q26)
 
 ```
-prompts/          proposer.md, critic.md, summarizer.md
+prompts/          system_context.md, proposer.md, critic.md, summarizer.md
 engine/
+  config.py       model name, round cap, default Feature Request
   models.py       Pydantic shapes
   agents.py       one function per agent: load prompt, call Claude, check output
   deliberation.py round loop, consistency check, stop rule
@@ -130,7 +131,7 @@ README.md  DECISIONS.md (skeleton)  GLOSSARY.md  requirements.txt
 
 ## Tests (Q24, revised at /to-spec)
 
-One seam: the **model client**, a function that takes an agent's prompt and messages and returns its raw reply. The real one wraps the `anthropic` SDK. Tests pass a scripted fake that returns canned replies in order. The whole deliberation runs for real, and tests check only what comes out (Stop Reason, Rounds, Challenge States, Open Questions, Disagreement, retries in the transcript, rendered Markdown). They never call internal functions directly. No API calls.
+One seam: the **model client**, a function that takes an agent's system prompt, messages, and expected reply shape, and returns its raw reply text. The real one wraps the `anthropic` SDK. Tests pass a scripted fake that returns canned replies in order. The whole deliberation runs for real, and tests check only what comes out (Stop Reason, Rounds, Challenge States, Open Questions, Disagreement, retries in the transcript, rendered Markdown). They never call internal functions directly. No API calls.
 
 Covered:
 - Each stop reason, including "flat count is not a stall."
@@ -143,8 +144,10 @@ Covered:
 
 ## Defaults chosen without a question
 
-- Temperature: low for the Critic and Summarizer, moderate for the Proposer.
-- A per-call `max_tokens` limit.
+- Temperature: not set. Haiku 5.5 rejects non-default sampling values (400), so the planned per-agent temperatures were dropped (found while building #2).
+- Structured output: the real client uses `messages.parse` with each agent's Pydantic model, so replies follow the shape. The seam still returns raw text, so tests can feed malformed replies.
+- A per-call `max_tokens` limit (16000).
+- The API key is read from `.env` (git-ignored; `.env.example` is committed) or the environment.
 - Plain `print` for console logging.
 
 ## Build order
