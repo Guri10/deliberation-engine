@@ -1,0 +1,18 @@
+# Assessment brief is marked "Confidential — Do not distribute"
+ai_engineer_assessment.pdf
+
+# Run outputs (only the committed sample is kept)
+runs/*
+!runs/sample/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets
+.env
+
+# OS
+.DS_Store
