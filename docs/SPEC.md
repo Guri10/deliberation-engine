@@ -89,6 +89,8 @@ Checked after every Critic turn, by one function, in this order:
 
 When the run ends by `stalled` or `round_cap`, every Challenge still open becomes a **blocking** Open Question, tagged with the stop reason.
 
+Round 1 always counts as movement, since nothing is open yet, so the earliest stall is after Round 3.
+
 A flat Disagreement count does not mean a stall. If two Challenges close and two new ones open in the same Round, real work happened.
 
 ## Scores (Q7, Q18)

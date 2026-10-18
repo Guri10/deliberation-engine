@@ -18,15 +18,28 @@ class RunResult:
     run_dir: Path
 
 
-def stop_reason(
-    round_number: int, critic_turn: CriticTurn, open_count: int, critic_exhausted: bool, round_cap: int
-) -> StopReason | None:
-    """Why the deliberation should end after this Round, or None to continue."""
-    if critic_turn.verdict == "SATISFIED" and round_number >= 2 and open_count == 0:
+def round_moved(round_: Round) -> bool:
+    """Whether a Round made progress: a Challenge closed or escalated, or a Revise or Concede.
+
+    Round 1 always counts as movement, since nothing is open yet that could move.
+    """
+    if round_.number == 1:
+        return True
+    settled = any(s.state != "open" for s in round_.critic_turn.challenge_states)
+    changed = any(r.type != "Defend" for r in round_.proposal.responses)
+    return settled or changed
+
+
+def stop_reason(rounds: list[Round], open_count: int, critic_exhausted: bool, round_cap: int) -> StopReason | None:
+    """Why the deliberation should end after the last Round, or None to continue."""
+    last = rounds[-1]
+    if last.critic_turn.verdict == "SATISFIED" and last.number >= 2 and open_count == 0:
         return "satisfied"
     if critic_exhausted:
         return "critic_exhausted"
-    if round_number >= round_cap:
+    if len(rounds) >= 2 and not round_moved(last) and not round_moved(rounds[-2]):
+        return "stalled"
+    if last.number >= round_cap:
         return "round_cap"
     return None
 
@@ -74,6 +87,25 @@ def apply_critic_turn(
     return critic_turn.model_copy(update={"new_challenges": kept}), notes
 
 
+def challenge_open_questions(challenges: list[TrackedChallenge], reason: StopReason) -> list[str]:
+    """Open Questions that come from Challenges, added by code so they never depend on the Summarizer.
+
+    Escalated Challenges always become blocking Open Questions, since a human must decide them.
+    When the run stalled or ran out of Rounds, every Challenge still open becomes a blocking one too,
+    tagged with the Stop Reason.
+    """
+    sources = {"escalated": "escalated"}
+    if reason == "stalled":
+        sources["open"] = "stalled"
+    elif reason == "round_cap":
+        sources["open"] = "round cap"
+    return [
+        f"{t.challenge.text} ({t.challenge.id}; blocking; source: {sources[t.state]})"
+        for t in challenges
+        if t.state in sources
+    ]
+
+
 def run_deliberation(
     feature_request: str,
     client: ModelClient,
@@ -96,10 +128,8 @@ def run_deliberation(
         write_trace(error.run_dir, feature_request, rounds, footer)
         raise
 
-    escalated = [
-        f"{t.challenge.text} (escalated {t.challenge.id})" for t in challenges if t.state == "escalated"
-    ]
-    decision = decision.model_copy(update={"open_questions": decision.open_questions + escalated})
+    from_challenges = challenge_open_questions(challenges, reason)
+    decision = decision.model_copy(update={"open_questions": decision.open_questions + from_challenges})
     run_dir = new_run_dir(runs_dir)
     footer = [notes_block(summarizer_notes)] if summarizer_notes else []
     write_trace(run_dir, feature_request, rounds, footer + [f"**Stop reason:** {reason}"])
@@ -135,7 +165,7 @@ def _run_rounds(
         rounds.append(Round(number=round_number, proposal=proposal, critic_turn=critic_turn, notes=notes))
         print(format_round(rounds[-1]))
         open_count = sum(t.state == "open" for t in ledger.values())
-        reason = stop_reason(round_number, critic_turn, open_count, critic_exhausted, round_cap)
+        reason = stop_reason(rounds, open_count, critic_exhausted, round_cap)
     return reason
 
 

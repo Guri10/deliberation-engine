@@ -96,11 +96,21 @@ def test_satisfied_in_round_one_is_retried_then_treated_as_continue_if_repeated(
     assert "fallback: treated as CONTINUE" in round_one
 
 
-def test_run_ends_at_round_cap_when_critic_never_satisfied(tmp_path):
-    replies = [proposal(1), critique("CONTINUE", new=[challenge("C1")])]
-    for n in range(2, 7):
-        replies += [proposal(n, [defend("C1")]), critique("CONTINUE", states=[state("C1", "open", "Still unclear")])]
-    client = ScriptedClient(replies + [DECISION])
+def two_close_two_open_every_round(rounds: int) -> list[str]:
+    """Each Round closes the 2 open Challenges and opens 2 new ones, so Disagreement stays at 2."""
+    replies = [proposal(1), critique("CONTINUE", new=[challenge("C1"), challenge("C2")])]
+    for n in range(2, rounds + 1):
+        old = [f"C{2 * n - 3}", f"C{2 * n - 2}"]
+        new = [challenge(f"C{2 * n - 1}"), challenge(f"C{2 * n}")]
+        replies += [
+            proposal(n, [defend(cid) for cid in old]),
+            critique("CONTINUE", new=new, states=[state(cid, "closed") for cid in old]),
+        ]
+    return replies
+
+
+def test_closing_two_and_opening_two_each_round_is_not_a_stall_and_runs_to_the_round_cap(tmp_path):
+    client = ScriptedClient(two_close_two_open_every_round(6) + [DECISION])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
@@ -144,7 +154,7 @@ def test_challenge_escalated_in_round_two_becomes_an_open_question_and_allows_sa
 
     assert result.stop_reason == "satisfied"
     assert [(t.challenge.id, t.state) for t in result.challenges] == [("C1", "escalated")]
-    assert any(sanctions in q for q in result.decision.open_questions)
+    assert f"{sanctions} (C1; blocking; source: escalated)" in result.decision.open_questions
     assert sanctions in (result.run_dir / "decision_document.md").read_text().split("## Open Questions")[1]
 
 
@@ -389,3 +399,99 @@ def test_summarizer_retry_shows_in_the_trace(tmp_path):
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
     assert "Summarizer reply was invalid, retried" in (result.run_dir / "trace.md").read_text()
+
+
+def still_open(cid: str) -> dict:
+    return state(cid, "open", "Not convinced yet")
+
+
+def test_two_rounds_in_a_row_with_no_movement_end_the_run_as_stalled(tmp_path):
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1")]),
+        proposal(2, [defend("C1")]), critique("CONTINUE", states=[still_open("C1")]),
+        proposal(3, [defend("C1")]), critique("CONTINUE", states=[still_open("C1")]),
+        DECISION,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    assert result.stop_reason == "stalled"
+    assert len(result.rounds) == 3
+
+
+def open_questions_section(result) -> str:
+    return (result.run_dir / "decision_document.md").read_text().split("## Open Questions")[1].split("##")[0]
+
+
+def test_at_a_stall_each_open_challenge_becomes_a_blocking_open_question_tagged_stalled(tmp_path):
+    retention = "How long may mission notes be kept?"
+    sanctions = "Who sees notes on sanctioned contacts?"
+    settled = "Is five years enough?"
+    stuck = [still_open("C1"), still_open("C2")]
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[
+            challenge("C1", retention), challenge("C2", sanctions, type_="risk"), challenge("C3", settled),
+        ]),
+        proposal(2, [defend("C1"), defend("C2"), defend("C3")]),
+        critique("CONTINUE", states=stuck + [state("C3", "closed")]),
+        proposal(3, [defend("C1"), defend("C2")]), critique("CONTINUE", states=stuck),
+        proposal(4, [defend("C1"), defend("C2")]), critique("CONTINUE", states=stuck),
+        DECISION,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    assert result.stop_reason == "stalled"
+    section = open_questions_section(result)
+    assert f"{retention} (C1; blocking; source: stalled)" in section
+    assert f"{sanctions} (C2; blocking; source: stalled)" in section
+    assert settled not in section
+
+
+def test_at_the_round_cap_each_open_challenge_becomes_a_blocking_open_question_tagged_round_cap(tmp_path):
+    client = ScriptedClient(two_close_two_open_every_round(6) + [DECISION])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    section = open_questions_section(result)
+    assert "Challenge C11 on A1 (C11; blocking; source: round cap)" in section
+    assert "Challenge C12 on A1 (C12; blocking; source: round cap)" in section
+    assert "C10" not in section
+
+
+@pytest.mark.parametrize("round_three_response, round_three_state", [
+    ({"challenge_id": "C1", "type": "Revise", "text": "Now 20 years.", "quote": "Challenge C1"}, still_open("C1")),
+    ({"challenge_id": "C1", "type": "Concede", "text": "Dropped.", "quote": "Challenge C1"}, still_open("C1")),
+    (defend("C1"), state("C1", "escalated")),
+])
+def test_a_revise_concede_or_escalation_alone_counts_as_movement(tmp_path, round_three_response, round_three_state):
+    still_open_after_three = ["C1", "C2"] if round_three_state["state"] == "open" else ["C2"]
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1"), challenge("C2")]),
+        proposal(2, [defend("C1"), defend("C2")]), critique("CONTINUE", states=[still_open("C1"), still_open("C2")]),
+        proposal(3, [round_three_response, defend("C2")]),
+        critique("CONTINUE", states=[round_three_state, still_open("C2")]),
+        proposal(4, [defend(cid) for cid in still_open_after_three]),
+        critique("SATISFIED", states=[state(cid, "closed") for cid in still_open_after_three]),
+        DECISION,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    assert result.stop_reason == "satisfied"
+    assert len(result.rounds) == 4
+
+
+def test_proposer_must_respond_to_exactly_the_open_challenges(tmp_path):
+    answers_closed_one = proposal(3, [
+        {"challenge_id": "C1", "type": "Revise", "text": "Changed.", "quote": "Challenge C1"}, defend("C2"),
+    ])
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1"), challenge("C2")]),
+        proposal(2, [defend("C1"), defend("C2")]), critique("CONTINUE", states=[state("C1", "closed"), still_open("C2")]),
+        answers_closed_one, answers_closed_one,
+    ])
+
+    error = invalid_twice(client, tmp_path)
+
+    assert "C1" in str(error) and "C2" in str(error)

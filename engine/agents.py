@@ -107,7 +107,15 @@ def propose(
             f"\n\nThe Critic's open challenges:\n{_json(open_challenges)}"
             "\n\nWrite your updated proposal, with one response for each open challenge."
         )
-    return _ask(client, "proposer", _user(content), ProposerTurn, notes)
+    open_ids = sorted(c.id for c in open_challenges)
+
+    def responds_to_open_challenges(turn: ProposerTurn) -> str | None:
+        answered = sorted(r.challenge_id for r in turn.responses)
+        if answered == open_ids:
+            return None
+        return f"give one response for exactly the open challenges {open_ids}, not {answered}"
+
+    return _ask(client, "proposer", _user(content), ProposerTurn, notes, responds_to_open_challenges)
 
 
 def criticize(
