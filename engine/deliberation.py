@@ -137,7 +137,7 @@ def _run_rounds(
     while reason is None:
         round_number = len(rounds) + 1
         notes: list[str] = []
-        open_challenges = [t.challenge for t in ledger.values() if t.state == "open"]
+        open_challenges = [t for t in ledger.values() if t.state == "open"]
         proposal = propose(
             client,
             feature_request,

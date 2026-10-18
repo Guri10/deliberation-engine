@@ -126,7 +126,7 @@ engine/
   render.py       Decision Document JSON → Markdown; trace writer
 main.py           CLI entry point
 tests/            pytest, no API calls
-runs/sample/      one committed run of Example 2
+runs/sample/      one committed run of Example 3
 README.md  DECISIONS.md (skeleton)  GLOSSARY.md  requirements.txt
 ```
 
@@ -158,5 +158,5 @@ Covered:
 1. `engine/models.py` and the stop rule in `engine/deliberation.py`, test-first.
 2. `engine/agents.py` and the three prompts.
 3. `engine/render.py`, `main.py`, and the README.
-4. A live run of Example 2, committed to `runs/sample/`.
+4. A live run of Example 3 ("goes cold"), committed to `runs/sample/`. Example 2 was run too, but on the tuned prompts none of its runs had a Defend that held (see `docs/prompt-tuning-notes.md`).
 5. The `DECISIONS.md` skeleton.

@@ -207,6 +207,20 @@ def test_proposer_sees_only_open_challenges(tmp_path):
     assert all(text in round_three_critic for text in (closed_text, open_text, escalated_text))
 
 
+def test_proposer_sees_why_the_critic_kept_each_challenge_open(tmp_path):
+    reason = "No baseline: how long does a briefing take today?"
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1")]),
+        proposal(2, [defend("C1")]), critique("CONTINUE", states=[state("C1", "open", reason)]),
+        proposal(3, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
+        *ENDING,
+    ])
+
+    run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    assert reason in client.contents("Proposer")[2]
+
+
 def test_revise_and_concede_carry_the_quoted_critic_argument(tmp_path):
     argument = "Treaties often span decades"
     client = ScriptedClient([

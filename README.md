@@ -60,7 +60,7 @@ Each run writes a new timestamped folder under `runs/`, for example `runs/202610
 
 If an agent's output is still invalid after one retry, the run stops and still saves `trace.md` with everything up to that point.
 
-A full live run of the default request, made with `claude-haiku-5-5`, is committed in [`runs/sample/`](runs/sample/). Other run folders are git-ignored.
+A full live run of *"The CRM should alert us when our relationship with a country goes cold."*, made with `claude-haiku-5-5`, is committed in [`runs/sample/`](runs/sample/). Other run folders are git-ignored.
 
 ## Tests
 

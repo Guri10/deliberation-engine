@@ -11,7 +11,6 @@ from pydantic import BaseModel, ValidationError
 
 from engine.config import MAX_TOKENS, MODEL, PROMPTS_DIR, SYSTEM_CONTEXT
 from engine.models import (
-    Challenge,
     Confidence,
     CriticTurn,
     ProposerTurn,
@@ -97,7 +96,7 @@ def _user(content: str) -> list[MessageParam]:
     return [{"role": "user", "content": content}]
 
 
-def _json(items: list[Challenge] | list[TrackedChallenge] | list[Round]) -> str:
+def _json(items: list[TrackedChallenge] | list[Round]) -> str:
     return json.dumps([item.model_dump() for item in items], indent=2)
 
 
@@ -105,7 +104,7 @@ def propose(
     client: ModelClient,
     feature_request: str,
     last_proposal: ProposerTurn | None,
-    open_challenges: list[Challenge],
+    open_challenges: list[TrackedChallenge],
     notes: list[str],
 ) -> ProposerTurn:
     content = f"Feature request:\n{feature_request}"
@@ -115,7 +114,7 @@ def propose(
             f"\n\nThe Critic's open challenges:\n{_json(open_challenges)}"
             "\n\nWrite your updated proposal, with one response for each open challenge."
         )
-    open_ids = sorted(c.id for c in open_challenges)
+    open_ids = sorted(t.challenge.id for t in open_challenges)
 
     def responds_to_open_challenges(turn: ProposerTurn) -> str | None:
         answered = sorted(r.challenge_id for r in turn.responses)

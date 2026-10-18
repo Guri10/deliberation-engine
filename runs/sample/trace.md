@@ -1,34 +1,34 @@
 # Deliberation trace
 
-**Feature request:** Project managers should be able to see the full history of engagement with a country before starting a new mission.
+**Feature request:** The CRM should alert us when our relationship with a country goes cold.
 
 ## Round 1
 
 ### Proposer
 **In scope:**
-- Read-only briefing view on a country record showing past engagement (logged meetings, correspondence, and missions) before a new mission is created
-- Filter by project and date range within that view
-- Ability to export the briefing view to PDF for offline use in mission preparation
-- Display of confidentiality flags on contact records surfaced in the history, with restricted items hidden from users lacking clearance
+- Compute a per-country engagement recency signal from logged interactions (meetings, calls, emails, mission visits) recorded in the CRM
+- Flag a country as cold when its engagement recency exceeds a configurable threshold, with the threshold set per country tier by the regional coordinator
+- Send an in-app alert and a daily digest email to the assigned regional coordinator and country project lead when a country becomes cold
+- Show the cold-country list on a dashboard view with the last logged engagement date and the responsible owner
+- Record each alert and its acknowledgement in the country's engagement history
 **Out of scope:**
-- Creating, editing, or deleting engagement records from the history view
-- Changes to how engagement is logged at the point of capture
-- Automated summaries or AI-generated narrative of history
-- Historical data migration or cleanup of legacy records
-- Notifications or alerts triggered by prior engagement
-- Access changes to the broader CRM beyond this view
+- Predicting future disengagement with machine learning or sentiment analysis of email content
+- Alerting on individual contacts going cold (contact-level alerts are a separate request)
+- Ingesting interactions from external systems such as calendars, mail servers, or ministry portals
+- Automatic outreach or drafting of messages to government counterparts
+- Changing access controls or the confidentiality handling of contact records
 **Assumptions:**
-- A1: 'Full history' means all logged meetings, emails, and mission records for the selected country from the earliest existing record onward, not a fixed window.
-- A2: 'Before starting a new mission' means the view is accessed from or alongside mission creation for a given country, and it is used during preparation rather than as a real-time operational tool.
-- A3: Engagement is recorded consistently enough in the CRM that a country-level timeline can be assembled from existing records without new data capture.
-- A4: Project managers already have a role that permits reading country, contact, and mission records; this feature adds no new permission tier except for confidentiality-restricted contacts.
-- A5: Each engagement record can be linked to a country, and engagement items that span multiple countries appear under each linked country.
-- A6: Contact records carry a confidentiality or diplomatic-sensitivity marker that can be checked against the viewing user's clearance level.
-- A7: Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only.
+- A1: 'Relationship' means organizational engagement with a country as a whole, measured by logged interactions with any counterpart in that country, not the strength of any single contact.
+- A2: 'Goes cold' means no logged engagement of any type for longer than a threshold; the default threshold is 90 days, adjustable per country tier.
+- A3: Engagement is only counted if it is logged in the CRM; unlogged calls or informal contact do not count, so the alert may fire for countries that are in fact still active.
+- A4: Each country has an assigned regional coordinator and a project lead recorded in the CRM, so alerts have a named recipient.
+- A5: Countries are already tiered (for example by strategic priority) in the CRM, so per-tier thresholds can be applied without new tiering data.
+- A6: Interactions carry a country link and a date that the signal can query directly, without manual tagging per interaction.
+- A7: Confidential or diplomatically sensitive interactions are visible in the recency calculation only to users who already have access to them; the alert shows only the date and country, not the content.
 **Success criteria:**
-- time for a project manager to assemble a pre-mission engagement briefing for a country: under 10 minutes for countries with up to 500 logged records
-- share of project managers who report the history view contained the information they needed before a mission, measured in a post-launch survey: at least 80% agree
-- proportion of restricted-contact records visible to users without clearance: zero, verified by access audit
+- share of countries flagged cold that coordinators confirm as genuinely disengaged: at least 80% confirmed in a quarterly review
+- time from a country crossing its cold threshold to the coordinator receiving an alert: within 24 hours
+- share of cold-country alerts acknowledged within 7 days: at least 90%
 **Responses:**
 - (none)
 **Response counts:** Defend 0, Revise 0, Concede 0
@@ -37,202 +37,103 @@
 **Challenge states:**
 - (none)
 **New challenges:**
-- C1 [risk] on A6 and scope_in item 4: A6 assumes contact records carry a confidentiality marker checked against a viewing user's clearance level, but the proposal does not say where clearance is stored, who assigns it, or what happens when a user has no clearance record at all. Restricted items could be shown to users with unknown or default clearance. Who defines the clearance model and the default for missing values?
-- C2 [risk] on scope_in item 4 and success criterion 3: Hiding restricted contacts from the history does not hide the restricted information itself: a restricted contact's name can still appear in meeting subjects, email subjects (A7), mission titles, or project notes that the view shows. The proposal does not say whether these linked free-text fields are also filtered, so the zero-leak criterion may be met on the contact field while the information still leaks. Who decides which fields are redacted?
-- C3 [risk] on scope_in item 3 (PDF export) and A4: A PDF export of a briefing containing diplomatic-sensitivity content creates an uncontrolled copy outside the CRM's access controls. The proposal does not say whether exports respect confidentiality filtering, carry a classification marking, are logged, or how long they may be retained. Who approves offline distribution of country engagement records?
-- C4 [question] on A1 and success criterion 1: A1 defines full history as all records from the earliest existing record, yet the success criterion is measured for countries with up to 500 records, with no stated behaviour above that. For countries with thousands of records, the 10-minute target has no defined path. Is pagination, default windowing, or a hard limit acceptable, and who decides?
-- C5 [question] on A3 and A5: A3 assumes engagement is recorded consistently enough to assemble a timeline, and A5 assumes multi-country items link to every country. Neither is verified. If many meetings are logged only as free text or are unlinked to a country, the briefing is silently incomplete, which undermines the survey success criterion. Who audits data completeness before launch, and what does the view show when records are missing?
+- C1 [risk] on A7: A7 limits recency visibility to users who already hold access to confidential interactions, but the alert and the cold-country dashboard show the last logged engagement date for the country. If the only recent interaction is a restricted one, the date itself reveals that a confidential engagement happened, and coordinators or project leads who cannot see that record would still learn of it. The proposal does not say whether the date is masked, whether the dashboard and digest respect the same restriction, or who decides this.
+- C2 [question] on A2 and A5: A2 sets the cold threshold per country tier, and A5 assumes tiers already exist in the CRM. The proposal does not say how a country's engagement recency is computed when it has several counterparts and mission visits, or how 'cold' is determined when a country has no tier assigned. Without these definitions the core signal cannot be built, and if tiers do not exist, creating them would add scope.
+- C3 [question] on A3 and scope_in alert history: Scope_in records each alert and its acknowledgement in the country's engagement history. If alerts or acknowledgements are logged as interactions, they would reset the recency signal and the country would never go cold. The proposal must state that system-generated records are excluded from the engagement signal, and what counts as an acknowledgement.
+- C4 [question] on Success criteria 1 and 3: Success criteria 1 and 3 cannot be measured as written. 'Confirmed as genuinely disengaged' has no defined review process, owner, or sample, and 'acknowledged within 7 days' does not say what counts as acknowledgement (opening the alert, clicking a button, or a logged action). Without these definitions the criteria cannot be checked after launch.
+- C5 [risk] on A3: A3 accepts that unlogged engagement is ignored, so the alert will fire for countries that are still active but poorly logged. Once alerts go to coordinators, staff may back-date or create low-value log entries to clear them, which would corrupt the engagement history the signal depends on. The proposal does not address this incentive or who is accountable for log completeness.
 **Disagreement:** 5 open (first round)
 
 ## Round 2
 
 ### Proposer
 **In scope:**
-- Read-only briefing view on a country record showing past engagement (logged meetings, correspondence, and missions) before a new mission is created
-- Filter by project and date range within that view
-- Ability to export the briefing view to PDF for offline use in mission preparation, limited to items the exporting user is cleared to see, with a classification marking and an export log entry
-- Display of confidentiality flags on contact records surfaced in the history, with restricted items hidden from users lacking clearance
-- Redaction of restricted contact names from linked free-text fields (meeting subjects, email subjects, mission titles, project notes) shown in the briefing for users lacking clearance, using a defined list of fields reviewed by the data protection officer
-- Clearance lookup that treats a missing or unknown clearance record as no clearance (deny by default)
-- Completeness indicator on the briefing showing counts of records with no country link or no structured content, so users can see when the history may be incomplete
+- Compute a per-country engagement recency signal from logged interactions (meetings, calls, emails, mission visits) recorded in the CRM, using the most recent qualifying interaction date across all counterparts in that country
+- Flag a country as cold when its engagement recency exceeds a threshold set per country tier by the regional coordinator, with a default of 90 days for countries that have no tier assigned
+- Send an in-app alert and a daily digest email to the assigned regional coordinator and country project lead when a country becomes cold; alerts and digests show only country name, cold threshold status, and last engagement date, with the date masked where the last engagement was restricted
+- Show the cold-country list on a dashboard view with the last logged engagement date and the responsible owner, filtered by the same visibility rules as the digest
+- Record each alert and its acknowledgement in the country's alert log, kept separate from the engagement history so it does not feed the recency signal
+- Provide a review queue where coordinators can mark a cold flag as confirmed active or confirmed disengaged, with the reviewer and date recorded
 **Out of scope:**
-- Creating, editing, or deleting engagement records from the history view
-- Changes to how engagement is logged at the point of capture
-- Automated summaries or AI-generated narrative of history
-- Historical data migration or cleanup of legacy records
-- Notifications or alerts triggered by prior engagement
-- Access changes to the broader CRM beyond this view
-- Defining the enterprise clearance model itself (owned by the data protection officer)
-- Pagination-free rendering of very large histories: countries above 500 records will be served by filtered, paged views rather than a single scroll
+- Predicting future disengagement with machine learning or sentiment analysis of email content
+- Alerting on individual contacts going cold (contact-level alerts are a separate request)
+- Ingesting interactions from external systems such as calendars, mail servers, or ministry portals
+- Automatic outreach or drafting of messages to government counterparts
+- Changing access controls or the confidentiality handling of contact records
+- Creating new country tiers; if no tiering exists, this feature uses the 90-day default only and tiering is a separate request
+- Enforcing log completeness through automated penalties or audits of individual staff
 **Assumptions:**
-- A1: 'Full history' means all logged meetings, emails, and mission records for the selected country from the earliest existing record onward, not a fixed window; the default view opens on the most recent 24 months and the user can extend the range.
-- A2: 'Before starting a new mission' means the view is accessed from or alongside mission creation for a given country, and it is used during preparation rather than as a real-time operational tool.
-- A3: Engagement is recorded consistently enough in the CRM that a country-level timeline can be assembled from existing records without new data capture; this is unverified and is to be checked by a pre-launch completeness audit.
-- A4: Project managers already have a role that permits reading country, contact, and mission records; this feature adds no new permission tier except for confidentiality-restricted contacts, and export is restricted to users with the same read rights.
-- A5: Each engagement record can be linked to one or more countries, and multi-country items appear under each linked country; records with no country link are excluded from country views and counted in the completeness indicator.
-- A6: Contact records carry a confidentiality marker, and each user has a clearance value held in a central user-attribute store assigned by the data protection officer; a user with no clearance record is treated as having no clearance.
-- A7: Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only, and subject lines are subject to the same redaction rule as other free-text fields.
+- A1: 'Relationship' means organizational engagement with a country as a whole, measured by logged interactions with any counterpart in that country, not the strength of any single contact.
+- A2: 'Goes cold' means no qualifying logged engagement for longer than a threshold; the default threshold is 90 days, adjustable per country tier. A qualifying engagement is a meeting, call, email, or mission visit logged against the country by a user; system-generated records (alerts, acknowledgements, digests, review decisions) are excluded from the signal.
+- A3: Engagement is only counted if it is logged in the CRM; unlogged calls or informal contact do not count, so the alert may fire for countries that are in fact still active. The review queue (scope_in) is the mechanism for coordinators to clear false positives without creating log entries.
+- A4: Each country has an assigned regional coordinator and a project lead recorded in the CRM, so alerts have a named recipient.
+- A5: Countries are tiered in the CRM for example by strategic priority; where a country has no tier, the 90-day default applies. If the CRM has no tier field, per-tier thresholds are deferred and only the default applies.
+- A6: Interactions carry a country link and a date that the signal can query directly, without manual tagging per interaction.
+- A7: Restricted interactions count toward recency only for users who may see them. For users who cannot, the country's last engagement date is shown as the most recent unrestricted date, so the existence of a restricted engagement is not revealed. The Data Protection Officer decides the exact masking rule and whether restricted interactions should count toward recency at all.
+- A8: Acknowledgement means a coordinator or project lead opening the alert and selecting an explicit action (confirm active or confirm disengaged) in the review queue; opening alone does not count.
 **Success criteria:**
-- time for a project manager to assemble a pre-mission engagement briefing for a country: under 10 minutes for countries with up to 500 logged records; for larger countries, the filtered default view loads within 10 minutes on the same task
-- share of project managers who report the history view contained the information they needed before a mission, measured in a post-launch survey: at least 80% agree
-- proportion of restricted-contact records or restricted free-text references visible to users without clearance, including PDF exports: zero, verified by access audit and by a test set of restricted names seeded across all linked free-text fields
+- share of cold-country flags marked 'confirmed disengaged' by the coordinator in the review queue, sampled quarterly by the Head of Country Engagement across at least 20 flags: at least 80% confirmed disengaged
+- time from a country crossing its cold threshold to the coordinator receiving an alert: within 24 hours
+- share of cold-country alerts with an explicit review action (A8) within 7 days: at least 90%
 **Responses:**
-- C1 Revise (quoting "Who defines the clearance model and the default for missing values?"): Accepted that the clearance model was unstated. The proposal now names the data protection officer as owner of the clearance model and of the default. Missing clearance is treated as no clearance (deny by default), so restricted items are hidden from any user without an explicit clearance record. The clearance source is a central user-attribute store, and the exact store is to be confirmed by the DPO as an invented fact (A6).
-- C2 Revise (quoting "Who decides which fields are redacted?"): Accepted. Hiding the contact field alone is insufficient. The view now redacts restricted contact names from linked free-text fields (meeting subjects, email subjects, mission titles, project notes) for users without clearance. The list of redacted fields is set by the data protection officer, and the zero-leak criterion now covers free-text references and a seeded test set.
-- C3 Revise (quoting "Who approves offline distribution of country engagement records?"): Accepted. PDF export now respects the same confidentiality filtering as the screen view, carries a classification marking, and writes an export log entry. Retention and offline distribution approval are outside this proposal and are referred to Legal; the feature will not ship export until Legal confirms the approval route.
-- C4 Revise (quoting "For countries with thousands of records, the 10-minute target has no defined path."): Partly accepted. Full history is retained as the definition, but the default view is the most recent 24 months with the option to extend, and countries above 500 records are served by filtered, paged views. The success criterion is now stated for both cases. The head of Country Engagement is asked to confirm the paging approach.
-- C5 Revise (quoting "Who audits data completeness before launch, and what does the view show when records are missing?"): Accepted. A completeness indicator is added to the view showing counts of unlinked or unstructured records, and a pre-launch completeness audit is added to the rollout. The audit owner is the operations data owner, and the survey criterion will be read alongside the completeness figures.
-**Response counts:** Defend 0, Revise 5, Concede 0
+- C1 Revise (quoting "the date itself reveals that a confidential engagement happened, and coordinators or project leads who cannot see that record would still learn of it"): The dashboard and digest will use the same visibility rule as the recency calculation. For users who cannot see a restricted interaction, the last engagement date shown is the latest unrestricted date, so the restricted engagement is not revealed. The Data Protection Officer owns the masking rule and decides whether restricted interactions count toward recency at all, as recorded in A7.
+- C2 Revise (quoting "how 'cold' is determined when a country has no tier assigned"): Recency is the latest qualifying interaction across all counterparts and mission visits for the country. Countries with no tier use the 90-day default. Creating tiers is out of scope; if the CRM has no tier field, only the default applies, as stated in A5.
+- C3 Revise (quoting "The proposal must state that system-generated records are excluded from the engagement signal, and what counts as an acknowledgement."): System-generated records (alerts, acknowledgements, digests, review decisions) are excluded from the recency signal, as stated in A2. Alerts go to a separate alert log, not the engagement history. Acknowledgement is defined in A8 as an explicit review action.
+- C4 Revise (quoting "'Confirmed as genuinely disengaged' has no defined review process, owner, or sample"): Success criterion 1 now uses the coordinator's review-queue decision, sampled quarterly by the Head of Country Engagement across at least 20 flags. Criterion 3 uses the explicit review action defined in A8, not opening the alert.
+- C5 Defend: Back-dating and low-value logging is a real risk, but the proposal addresses it in part: system-generated records are excluded and the review queue lets coordinators clear false positives without creating log entries (A3, scope_in). Log completeness accountability sits with the Head of Country Engagement under existing CRM logging policy, which this feature does not change. Adding staff-level audits would go beyond the request, so it is listed in scope_out. The review queue's recorded reviewer and date make back-dating visible in audit.
+**Response counts:** Defend 1, Revise 4, Concede 0
 
 ### Critic: CONTINUE
 **Challenge states:**
-- C1: closed
+- C1: escalated
 - C2: closed
-- C3: escalated
-- C4: escalated
+- C3: closed
+- C4: closed
 - C5: closed
 **New challenges:**
-- C6 [risk] on scope_in item 7 (completeness indicator) and scope_in item 4 (restricted items hidden): The completeness indicator shows counts of unlinked or unstructured records. If these counts include restricted engagement, a user without clearance could infer that restricted meetings or missions exist for a country, even though the items themselves are hidden. The proposal does not say whether the counts are filtered by the viewing user's clearance. Should completeness counts be computed only over records the user may see, and if not, who accepts the disclosure risk?
+- C6 [risk] on A7 and scope_in cold flag: A7 says restricted interactions count toward recency only for users who may see them. If the cold flag itself is computed per viewer, a country can show as cold to a coordinator who cannot see a restricted interaction and as active to one who can. The alert or dashboard then reveals the restricted engagement through the flag's presence or absence, even if the date is masked. The proposal must say whether the flag is computed once on unrestricted data or per viewer, and how the digest, alert, and dashboard stay consistent.
 **Disagreement:** 1 open (-4)
 
 ## Round 3
 
 ### Proposer
 **In scope:**
-- Read-only briefing view on a country record showing past engagement (logged meetings, correspondence, and missions) before a new mission is created
-- Filter by project and date range within that view
-- Ability to export the briefing view to PDF for offline use in mission preparation, limited to items the exporting user is cleared to see, with a classification marking and an export log entry
-- Display of confidentiality flags on contact records surfaced in the history, with restricted items hidden from users lacking clearance
-- Redaction of restricted contact names from linked free-text fields (meeting subjects, email subjects, mission titles, project notes) shown in the briefing for users lacking clearance, using a defined list of fields reviewed by the data protection officer
-- Clearance lookup that treats a missing or unknown clearance record as no clearance (deny by default)
-- Completeness indicator on the briefing showing counts of records with no country link or no structured content, computed only over records the viewing user is cleared to see, so that counts never reveal the existence of restricted items to users without clearance
+- Compute a per-country engagement recency signal from logged interactions (meetings, calls, emails, mission visits) recorded in the CRM, using the most recent qualifying interaction date across all counterparts in that country
+- Compute the cold flag once per country from unrestricted qualifying interactions only, so the flag value is identical for every viewer; restricted interactions do not affect the flag in the default design pending the Data Protection Officer's decision
+- Flag a country as cold when its engagement recency exceeds a threshold set per country tier by the regional coordinator, with a default of 90 days for countries that have no tier assigned
+- Send an in-app alert and a daily digest email to the assigned regional coordinator and country project lead when a country becomes cold; alerts and digests show only country name, cold flag status, and last engagement date, with the date taken from the unrestricted signal so the digest, alert, and dashboard show the same flag and date to every recipient
+- Show the cold-country list on a dashboard view with the last logged engagement date and the responsible owner, drawn from the same once-computed flag and filtered by the same visibility rules as the digest
+- Record each alert and its acknowledgement in the country's alert log, kept separate from the engagement history so it does not feed the recency signal
+- Provide a review queue where coordinators can mark a cold flag as confirmed active or confirmed disengaged, with the reviewer and date recorded; the review decision is stored once per country flag and shown identically to all viewers of that flag
 **Out of scope:**
-- Creating, editing, or deleting engagement records from the history view
-- Changes to how engagement is logged at the point of capture
-- Automated summaries or AI-generated narrative of history
-- Historical data migration or cleanup of legacy records
-- Notifications or alerts triggered by prior engagement
-- Access changes to the broader CRM beyond this view
-- Defining the enterprise clearance model itself (owned by the data protection officer)
-- Pagination-free rendering of very large histories: countries above 500 records will be served by filtered, paged views rather than a single scroll
-- Completeness counts that reflect restricted records the viewing user cannot see; any such disclosure would require separate DPO approval
+- Predicting future disengagement with machine learning or sentiment analysis of email content
+- Alerting on individual contacts going cold (contact-level alerts are a separate request)
+- Ingesting interactions from external systems such as calendars, mail servers, or ministry portals
+- Automatic outreach or drafting of messages to government counterparts
+- Changing access controls or the confidentiality handling of contact records
+- Creating new country tiers; if no tiering exists, this feature uses the 90-day default only and tiering is a separate request
+- Enforcing log completeness through automated penalties or audits of individual staff
+- Per-viewer cold flags or per-viewer recency calculations
 **Assumptions:**
-- A1: 'Full history' means all logged meetings, emails, and mission records for the selected country from the earliest existing record onward, not a fixed window; the default view opens on the most recent 24 months and the user can extend the range.
-- A2: 'Before starting a new mission' means the view is accessed from or alongside mission creation for a given country, and it is used during preparation rather than as a real-time operational tool.
-- A3: Engagement is recorded consistently enough in the CRM that a country-level timeline can be assembled from existing records without new data capture; this is unverified and is to be checked by a pre-launch completeness audit.
-- A4: Project managers already have a role that permits reading country, contact, and mission records; this feature adds no new permission tier except for confidentiality-restricted contacts, and export is restricted to users with the same read rights.
-- A5: Each engagement record can be linked to one or more countries, and multi-country items appear under each linked country; records with no country link are excluded from country views and counted in the completeness indicator only where the viewing user is cleared to see the underlying record.
-- A6: Contact records carry a confidentiality marker, and each user has a clearance value held in a central user-attribute store assigned by the data protection officer; a user with no clearance record is treated as having no clearance.
-- A7: Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only, and subject lines are subject to the same redaction rule as other free-text fields.
-- A8: Completeness counts are computed per viewing user over the same clearance-filtered record set as the rest of the view, so a restricted unlinked or unstructured record is not counted for a user without clearance; the DPO must confirm that this filtering removes any inference risk from aggregate counts.
+- A1: 'Relationship' means organizational engagement with a country as a whole, measured by logged interactions with any counterpart in that country, not the strength of any single contact.
+- A2: 'Goes cold' means no qualifying logged engagement for longer than a threshold; the default threshold is 90 days, adjustable per country tier. A qualifying engagement is a meeting, call, email, or mission visit logged against the country by a user; system-generated records (alerts, acknowledgements, digests, review decisions) are excluded from the signal.
+- A3: Engagement is only counted if it is logged in the CRM; unlogged calls or informal contact do not count, so the alert may fire for countries that are in fact still active. The review queue (scope_in) is the mechanism for coordinators to clear false positives without creating log entries.
+- A4: Each country has an assigned regional coordinator and a project lead recorded in the CRM, so alerts have a named recipient.
+- A5: Countries are tiered in the CRM for example by strategic priority; where a country has no tier, the 90-day default applies. If the CRM has no tier field, per-tier thresholds are deferred and only the default applies.
+- A6: Interactions carry a country link and a date that the signal can query directly, without manual tagging per interaction.
+- A7: Restricted interactions are excluded from the single country-level cold flag and from the date shown in alerts, digests, and dashboard, so the flag is the same for every viewer and reveals nothing about restricted engagement. As a consequence a country whose only recent engagement is restricted may show as cold to everyone, a false positive that coordinators clear in the review queue. The Data Protection Officer decides whether restricted interactions should count toward recency at all, and whether any viewer-specific handling is needed.
+- A8: Acknowledgement means a coordinator or project lead opening the alert and selecting an explicit action (confirm active or confirm disengaged) in the review queue; opening alone does not count.
 **Success criteria:**
-- time for a project manager to assemble a pre-mission engagement briefing for a country: under 10 minutes for countries with up to 500 logged records; for larger countries, the filtered default view loads within 10 minutes on the same task
-- share of project managers who report the history view contained the information they needed before a mission, measured in a post-launch survey: at least 80% agree
-- proportion of restricted-contact records or restricted free-text references visible to users without clearance, including PDF exports and completeness counts: zero, verified by access audit and by a test set of restricted names seeded across all linked free-text fields and in unlinked and unstructured records
+- share of cold-country flags marked 'confirmed disengaged' by the coordinator in the review queue, sampled quarterly by the Head of Country Engagement across at least 20 flags: at least 80% confirmed disengaged
+- time from a country crossing its cold threshold to the coordinator receiving an alert: within 24 hours
+- share of cold-country alerts with an explicit review action (A8) within 7 days: at least 90%
 **Responses:**
-- C6 Revise (quoting "Should completeness counts be computed only over records the user may see, and if not, who accepts the disclosure risk?"): Accepted. The completeness indicator will be computed only over records the viewing user is cleared to see, so restricted unlinked or unstructured records do not contribute to counts shown to users without clearance. This removes the inference path the Critic identified. I have not accepted that every aggregate is safe by default: the DPO must confirm that clearance-filtered counts do not leak through small-number effects, for example a count that changes between a cleared and an uncleared user. If the DPO judges that risk material, the fallback is to drop the completeness counts for countries where restricted records exist, and I would accept that fallback.
-**Response counts:** Defend 0, Revise 1, Concede 0
-
-### Critic: CONTINUE
-**Challenge states:**
-- C6: escalated
-**New challenges:**
-- C7 [risk] on scope_in item 5 (redaction of restricted contact names from free-text fields) and success criterion 3: Redaction is defined by matching restricted contact names against linked free-text fields. The proposal does not say how names that are not held as contact records are handled, such as nicknames, titles with surnames only, misspellings, or names written in other languages. These would pass the redaction filter and still reveal a restricted contact's involvement to users without clearance. The zero-leak test set only covers names that are already seeded, so it would not catch this gap. Who decides the matching rules, and does the proposal need a fallback such as hiding whole free-text fields for restricted records?
-**Disagreement:** 1 open (+0)
-
-## Round 4
-
-### Proposer
-**In scope:**
-- Read-only briefing view on a country record showing past engagement (logged meetings, correspondence, and missions) before a new mission is created
-- Filter by project and date range within that view
-- Ability to export the briefing view to PDF for offline use in mission preparation, limited to items the exporting user is cleared to see, with a classification marking and an export log entry
-- Display of confidentiality flags on contact records surfaced in the history, with restricted items hidden from users lacking clearance
-- Field-level suppression instead of name matching: for users lacking clearance, any engagement, mission, or project record structurally linked to a restricted contact shows only type, date, and a restricted placeholder, and its free-text fields (meeting subjects, email subjects, mission titles, project notes) are not displayed or exported; the suppression rule uses the record-to-contact link, not text matching, and the field list is reviewed by the data protection officer
-- Clearance lookup that treats a missing or unknown clearance record as no clearance (deny by default)
-- Completeness indicator on the briefing showing counts of records with no country link or no structured content, computed only over records the viewing user is cleared to see, so that counts never reveal the existence of restricted items to users without clearance
-**Out of scope:**
-- Creating, editing, or deleting engagement records from the history view
-- Changes to how engagement is logged at the point of capture
-- Automated summaries or AI-generated narrative of history
-- Historical data migration or cleanup of legacy records
-- Notifications or alerts triggered by prior engagement
-- Access changes to the broader CRM beyond this view
-- Defining the enterprise clearance model itself (owned by the data protection officer)
-- Pagination-free rendering of very large histories: countries above 500 records will be served by filtered, paged views rather than a single scroll
-- Completeness counts that reflect restricted records the viewing user cannot see; any such disclosure would require separate DPO approval
-- Name-matching redaction of free-text fields on records not structurally linked to a restricted contact; this is not relied on as a control
-**Assumptions:**
-- A1: 'Full history' means all logged meetings, emails, and mission records for the selected country from the earliest existing record onward, not a fixed window; the default view opens on the most recent 24 months and the user can extend the range.
-- A2: 'Before starting a new mission' means the view is accessed from or alongside mission creation for a given country, and it is used during preparation rather than as a real-time operational tool.
-- A3: Engagement is recorded consistently enough in the CRM that a country-level timeline can be assembled from existing records without new data capture; this is unverified and is to be checked by a pre-launch completeness audit.
-- A4: Project managers already have a role that permits reading country, contact, and mission records; this feature adds no new permission tier except for confidentiality-restricted contacts, and export is restricted to users with the same read rights.
-- A5: Each engagement record can be linked to one or more countries, and multi-country items appear under each linked country; records with no country link are excluded from country views and counted in the completeness indicator only where the viewing user is cleared to see the underlying record.
-- A6: Contact records carry a confidentiality marker, and each user has a clearance value held in a central user-attribute store assigned by the data protection officer; a user with no clearance record is treated as having no clearance.
-- A7: Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only, and subject lines are subject to the same suppression rule as other free-text fields on records linked to restricted contacts.
-- A8: Completeness counts are computed per viewing user over the same clearance-filtered record set as the rest of the view, so a restricted unlinked or unstructured record is not counted for a user without clearance; the DPO must confirm that this filtering removes any inference risk from aggregate counts.
-- A9: Engagement, mission, and project records can be structurally linked to the contact records they involve, so that suppression can be keyed on the link rather than on name text; the DPO owns the rule that decides which links trigger suppression and whether free-text on unlinked records needs any further control.
-**Success criteria:**
-- time for a project manager to assemble a pre-mission engagement briefing for a country: under 10 minutes for countries with up to 500 logged records; for larger countries, the filtered default view loads within 10 minutes on the same task
-- share of project managers who report the history view contained the information they needed before a mission, measured in a post-launch survey: at least 80% agree
-- proportion of restricted-contact records, or free-text fields on records linked to restricted contacts, visible to users without clearance, including PDF exports and completeness counts: zero, verified by access audit and by a test set of records linked to restricted contacts across all record types, including unlinked and unstructured records; a separate check confirms that no free-text of a suppressed record appears in exports
-**Responses:**
-- C7 Revise (quoting "Who decides the matching rules, and does the proposal need a fallback such as hiding whole free-text fields for restricted records?"): Accepted in substance. Name matching cannot be a reliable control: nicknames, surname-only titles, misspellings, and other-language forms all escape an exact-name filter, and the seeded test set would not catch them. I have dropped name matching as the redaction mechanism. The new rule keys on the structural link between a record and a restricted contact. For users without clearance, a linked record shows only type, date, and a restricted placeholder, and its free-text fields are withheld entirely, including in PDF exports and counts. This is the fallback the Critic proposed, applied to linked records only. The matching rule question is now a DPO decision: the DPO decides which link types trigger suppression and whether any residual control is needed for free-text on unlinked records. I do not claim the link-based rule closes every path. A restricted person can still be named in free text on an unlinked record, and that residual risk is for the DPO to accept or close. The zero-leak test now seeds linked records and checks that suppressed free text never appears, rather than checking only seeded names.
-**Response counts:** Defend 0, Revise 1, Concede 0
-
-### Critic: CONTINUE
-**Challenge states:**
-- C7: escalated
-**New challenges:**
-- C8 [risk] on success criterion 3 and the response to C7: Success criterion 3 requires zero visibility of restricted free text, including on records not linked to a restricted contact, and it says the test set covers unlinked and unstructured records. The response to C7 concedes that a restricted person can still be named in free text on an unlinked record, and it leaves that residual risk to the DPO. The criterion as written cannot be met for unlinked records, so the proposal is internally inconsistent. Either the criterion must be restated to cover linked records only, with the unlinked case recorded as an accepted residual risk, or the proposal must add a control for unlinked free text. Which of these applies, and who accepts the residual risk?
-**Disagreement:** 1 open (+0)
-
-## Round 5
-
-### Proposer
-**In scope:**
-- Read-only briefing view on a country record showing past engagement (logged meetings, correspondence, and missions) before a new mission is created
-- Filter by project and date range within that view
-- Ability to export the briefing view to PDF for offline use in mission preparation, limited to items the exporting user is cleared to see, with a classification marking and an export log entry
-- Display of confidentiality flags on contact records surfaced in the history, with restricted items hidden from users lacking clearance
-- Field-level suppression keyed on the structural link between a record and a restricted contact, not name matching: for users lacking clearance, any engagement, mission, or project record structurally linked to a restricted contact shows only type, date, and a restricted placeholder, and its free-text fields (meeting subjects, email subjects, mission titles, project notes) are not displayed or exported; the list of link types that trigger suppression and the field list are reviewed by the data protection officer
-- Clearance lookup that treats a missing or unknown clearance record as no clearance (deny by default)
-- Completeness indicator on the briefing showing counts of records with no country link or no structured content, computed only over records the viewing user is cleared to see, so that counts never reveal the existence of restricted items to users without clearance
-- Documented residual-risk register entry for free text on unlinked records that may name a restricted person, submitted to the DPO for written acceptance or further control before launch
-**Out of scope:**
-- Creating, editing, or deleting engagement records from the history view
-- Changes to how engagement is logged at the point of capture
-- Automated summaries or AI-generated narrative of history
-- Historical data migration or cleanup of legacy records
-- Notifications or alerts triggered by prior engagement
-- Access changes to the broader CRM beyond this view
-- Defining the enterprise clearance model itself (owned by the data protection officer)
-- Pagination-free rendering of very large histories: countries above 500 records will be served by filtered, paged views rather than a single scroll
-- Completeness counts that reflect restricted records the viewing user cannot see; any such disclosure would require separate DPO approval
-- Name-matching redaction of free-text fields on any record; this is not relied on as a control
-- Automated detection of restricted persons named in free text on unlinked records; this is not built in this feature and is left to the DPO residual-risk decision
-**Assumptions:**
-- A1: 'Full history' means all logged meetings, emails, and mission records for the selected country from the earliest existing record onward, not a fixed window; the default view opens on the most recent 24 months and the user can extend the range.
-- A2: 'Before starting a new mission' means the view is accessed from or alongside mission creation for a given country, and it is used during preparation rather than as a real-time operational tool.
-- A3: Engagement is recorded consistently enough in the CRM that a country-level timeline can be assembled from existing records without new data capture; this is unverified and is to be checked by a pre-launch completeness audit.
-- A4: Project managers already have a role that permits reading country, contact, and mission records; this feature adds no new permission tier except for confidentiality-restricted contacts, and export is restricted to users with the same read rights.
-- A5: Each engagement record can be linked to one or more countries, and multi-country items appear under each linked country; records with no country link are excluded from country views and counted in the completeness indicator only where the viewing user is cleared to see the underlying record.
-- A6: Contact records carry a confidentiality marker, and each user has a clearance value held in a central user-attribute store assigned by the data protection officer; a user with no clearance record is treated as having no clearance.
-- A7: Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only, and subject lines are subject to the same suppression rule as other free-text fields on records linked to restricted contacts.
-- A8: Completeness counts are computed per viewing user over the same clearance-filtered record set as the rest of the view, so a restricted unlinked or unstructured record is not counted for a user without clearance; the DPO must confirm that this filtering removes any inference risk from aggregate counts.
-- A9: Engagement, mission, and project records can be structurally linked to the contact records they involve, so that suppression can be keyed on the link rather than on name text; the DPO owns the rule that decides which link types trigger suppression, and the DPO alone decides whether the residual risk of free text on unlinked records is accepted or needs a further control.
-**Success criteria:**
-- time for a project manager to assemble a pre-mission engagement briefing for a country: under 10 minutes for countries with up to 500 logged records; for larger countries, the filtered default view loads within 10 minutes on the same task
-- share of project managers who report the history view contained the information they needed before a mission, measured in a post-launch survey: at least 80% agree
-- proportion of records structurally linked to a restricted contact, including their free-text fields, visible to users without clearance, including PDF exports and completeness counts: zero, verified by access audit and by a test set of linked records across all record types; a separate check confirms that no free text of a suppressed linked record appears in exports
-- unlinked free-text residual risk (restricted person named in free text on a record with no structural link to a restricted contact): not claimed as zero; before launch the DPO must record written acceptance of this residual risk or specify a further control, and that decision is a launch gate
-**Responses:**
-- C8 Revise (quoting "Either the criterion must be restated to cover linked records only, with the unlinked case recorded as an accepted residual risk, or the proposal must add a control for unlinked free text."): Revised: criterion 3 is restated to cover records structurally linked to restricted contacts only, and the unlinked case is moved to a separate criterion 4 that does not claim zero. I did not add a control for unlinked free text: name matching was already rejected as unreliable, and any content-level detection would be a new, unscoped control. The residual risk is recorded in the scope and must be accepted or closed by the DPO before launch as a gate. The DPO, not the proposer, accepts the residual risk.
+- C6 Revise (quoting "The proposal must say whether the flag is computed once on unrestricted data or per viewer, and how the digest, alert, and dashboard stay consistent."): The cold flag is computed once per country from unrestricted qualifying interactions only, not per viewer. The digest, alert, dashboard, and review queue all read that single flag and its unrestricted last-engagement date, so every viewer sees the same status and nothing about a restricted interaction can appear through the flag's presence or absence. The trade-off is a possible false positive where restricted engagement is the only recent activity; the review queue handles this. Whether restricted interactions should count toward recency at all is left to the Data Protection Officer, as recorded in A7.
 **Response counts:** Defend 0, Revise 1, Concede 0
 
 ### Critic: SATISFIED
 **Challenge states:**
-- C8: closed
+- C6: closed
 **New challenges:**
 - (none)
 **Disagreement:** 0 open (-1)
