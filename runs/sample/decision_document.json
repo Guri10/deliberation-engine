@@ -1,0 +1,286 @@
+{
+  "stop_reason": "satisfied",
+  "scope_in": [
+    "Read-only briefing view on a country record showing past engagement (logged meetings, correspondence, and missions) before a new mission is created",
+    "Filter by project and date range within that view",
+    "PDF export of the briefing limited to items the exporting user is cleared to see, with a classification marking and an export log entry; export ships only once Legal confirms the approval route",
+    "Display of confidentiality flags on contact records surfaced in the history, with restricted items hidden from users lacking clearance",
+    "Field-level suppression keyed on the structural link between a record and a restricted contact, not name matching: for users lacking clearance, linked engagement, mission, or project records show only type, date, and a restricted placeholder, with free-text fields withheld from display and export; the link types that trigger suppression and the field list are reviewed by the data protection officer",
+    "Clearance lookup that treats a missing or unknown clearance record as no clearance (deny by default); clearance model owned by the data protection officer",
+    "Completeness indicator computed only over records the viewing user is cleared to see",
+    "Documented residual-risk register entry for free text on unlinked records that may name a restricted person, submitted to the DPO for written acceptance or further control before launch"
+  ],
+  "scope_out": [
+    "Creating, editing, or deleting engagement records from the history view",
+    "Changes to how engagement is logged at the point of capture",
+    "Automated summaries or AI-generated narrative of history",
+    "Historical data migration or cleanup of legacy records",
+    "Notifications or alerts triggered by prior engagement",
+    "Access changes to the broader CRM beyond this view",
+    "Defining the enterprise clearance model itself (owned by the data protection officer)",
+    "Pagination-free rendering of very large histories: countries above 500 records are served by filtered, paged views",
+    "Completeness counts that reflect restricted records the viewing user cannot see; any such disclosure would require separate DPO approval",
+    "Name-matching redaction of free-text fields on any record; not relied on as a control",
+    "Automated detection of restricted persons named in free text on unlinked records; left to the DPO residual-risk decision"
+  ],
+  "assumptions": [
+    {
+      "id": "A1",
+      "statement": "'Full history' means all logged meetings, emails, and mission records for the selected country from the earliest existing record onward; the default view opens on the most recent 24 months and the user can extend the range.",
+      "status": "Revised",
+      "round_raised": 1
+    },
+    {
+      "id": "A2",
+      "statement": "'Before starting a new mission' means the view is accessed from or alongside mission creation for a given country, and is used during preparation rather than as a real-time operational tool.",
+      "status": "Accepted",
+      "round_raised": 1
+    },
+    {
+      "id": "A3",
+      "statement": "Engagement is recorded consistently enough in the CRM that a country-level timeline can be assembled from existing records without new data capture; unverified and to be checked by a pre-launch completeness audit.",
+      "status": "Challenged-and-held",
+      "round_raised": 1
+    },
+    {
+      "id": "A4",
+      "statement": "Project managers already have a role permitting reading of country, contact, and mission records; no new permission tier except for confidentiality-restricted contacts, and export is restricted to users with the same read rights.",
+      "status": "Challenged-and-held",
+      "round_raised": 1
+    },
+    {
+      "id": "A5",
+      "statement": "Each engagement record can be linked to one or more countries; multi-country items appear under each linked country; unlinked records are excluded from country views and counted in the completeness indicator only where the viewing user is cleared to see them.",
+      "status": "Revised",
+      "round_raised": 1
+    },
+    {
+      "id": "A6",
+      "statement": "Contact records carry a confidentiality marker, and each user's clearance value is held in a central user-attribute store assigned by the data protection officer; a user with no clearance record is treated as having no clearance. The exact store is to be confirmed by the DPO.",
+      "status": "Revised",
+      "round_raised": 1
+    },
+    {
+      "id": "A7",
+      "statement": "Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only, and subject lines are subject to the same suppression rule as other free-text fields on records linked to restricted contacts.",
+      "status": "Revised",
+      "round_raised": 1
+    },
+    {
+      "id": "A8",
+      "statement": "Completeness counts are computed per viewing user over the same clearance-filtered record set; the DPO must confirm that this removes inference risk from aggregate counts, including small-number effects.",
+      "status": "Challenged-and-held",
+      "round_raised": 3
+    },
+    {
+      "id": "A9",
+      "statement": "Engagement, mission, and project records can be structurally linked to the contact records they involve; the DPO owns the rule deciding which link types trigger suppression and whether residual free-text risk on unlinked records is accepted or needs a further control.",
+      "status": "Challenged-and-held",
+      "round_raised": 4
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Will Legal approve offline distribution of PDF exports of country engagement records, including retention and the approval route? The feature will not ship export until this is confirmed.",
+      "blocking": true,
+      "who_should_answer": "Legal",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "Does the Head of Country Engagement confirm the paged-view approach for countries above 500 records, and the 10-minute threshold for those countries?",
+      "blocking": false,
+      "who_should_answer": "Head of Country Engagement",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "Does the DPO accept in writing the residual risk that a restricted person is named in free text on an unlinked record, or specify a further control? The proposer does not claim this risk is closed; the Critic's challenge is closed on the basis of the criterion restatement, but the acceptance itself is a launch gate.",
+      "blocking": true,
+      "who_should_answer": "Data protection officer",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "Which engagement, mission, and project link types trigger suppression, and is the field list complete? The Critic did not accept the proposal as safe without DPO sign-off on these.",
+      "blocking": true,
+      "who_should_answer": "Data protection officer",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "Do clearance-filtered completeness counts leak through small-number effects, such as a count that differs between a cleared and an uncleared user? If the DPO judges this material, the fallback is to drop completeness counts for countries where restricted records exist; this has not been decided.",
+      "blocking": true,
+      "who_should_answer": "Data protection officer",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "Is the clearance store correct and is the default for missing clearance records confirmed as deny? Invented fact A6 still needs confirmation of the actual store.",
+      "blocking": true,
+      "who_should_answer": "Data protection officer",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "Do engagement records link to countries and to contacts as assumed (A5, A9), and is email content stored or linked (A7)? These invented facts need CRM owner confirmation.",
+      "blocking": true,
+      "who_should_answer": "CRM owner",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "Is engagement recorded consistently enough to assemble a country timeline without new capture? A pre-launch completeness audit is planned but its results are unknown; the Critic did not accept this assumption as verified.",
+      "blocking": true,
+      "who_should_answer": "Operations data owner",
+      "source": "deliberation",
+      "challenge_id": null
+    },
+    {
+      "text": "A PDF export of a briefing containing diplomatic-sensitivity content creates an uncontrolled copy outside the CRM's access controls. The proposal does not say whether exports respect confidentiality filtering, carry a classification marking, are logged, or how long they may be retained. Who approves offline distribution of country engagement records?",
+      "blocking": true,
+      "who_should_answer": "Legal",
+      "source": "escalated",
+      "challenge_id": "C3"
+    },
+    {
+      "text": "A1 defines full history as all records from the earliest existing record, yet the success criterion is measured for countries with up to 500 records, with no stated behaviour above that. For countries with thousands of records, the 10-minute target has no defined path. Is pagination, default windowing, or a hard limit acceptable, and who decides?",
+      "blocking": true,
+      "who_should_answer": "Head of Country Engagement",
+      "source": "escalated",
+      "challenge_id": "C4"
+    },
+    {
+      "text": "The completeness indicator shows counts of unlinked or unstructured records. If these counts include restricted engagement, a user without clearance could infer that restricted meetings or missions exist for a country, even though the items themselves are hidden. The proposal does not say whether the counts are filtered by the viewing user's clearance. Should completeness counts be computed only over records the user may see, and if not, who accepts the disclosure risk?",
+      "blocking": true,
+      "who_should_answer": "Data protection officer",
+      "source": "escalated",
+      "challenge_id": "C6"
+    },
+    {
+      "text": "Redaction is defined by matching restricted contact names against linked free-text fields. The proposal does not say how names that are not held as contact records are handled, such as nicknames, titles with surnames only, misspellings, or names written in other languages. These would pass the redaction filter and still reveal a restricted contact's involvement to users without clearance. The zero-leak test set only covers names that are already seeded, so it would not catch this gap. Who decides the matching rules, and does the proposal need a fallback such as hiding whole free-text fields for restricted records?",
+      "blocking": true,
+      "who_should_answer": "Data protection officer",
+      "source": "escalated",
+      "challenge_id": "C7"
+    },
+    {
+      "text": "Confirm A5: Each engagement record can be linked to one or more countries, and multi-country items appear under each linked country; records with no country link are excluded from country views and counted in the completeness indicator only where the viewing user is cleared to see the underlying record.",
+      "blocking": false,
+      "who_should_answer": "CRM system owner",
+      "source": "invented fact",
+      "challenge_id": null
+    },
+    {
+      "text": "Confirm A6: Contact records carry a confidentiality marker, and each user has a clearance value held in a central user-attribute store assigned by the data protection officer; a user with no clearance record is treated as having no clearance.",
+      "blocking": false,
+      "who_should_answer": "CRM system owner",
+      "source": "invented fact",
+      "challenge_id": null
+    },
+    {
+      "text": "Confirm A7: Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only, and subject lines are subject to the same suppression rule as other free-text fields on records linked to restricted contacts.",
+      "blocking": false,
+      "who_should_answer": "CRM system owner",
+      "source": "invented fact",
+      "challenge_id": null
+    },
+    {
+      "text": "Confirm A8: Completeness counts are computed per viewing user over the same clearance-filtered record set as the rest of the view, so a restricted unlinked or unstructured record is not counted for a user without clearance; the DPO must confirm that this filtering removes any inference risk from aggregate counts.",
+      "blocking": false,
+      "who_should_answer": "CRM system owner",
+      "source": "invented fact",
+      "challenge_id": null
+    },
+    {
+      "text": "Confirm A9: Engagement, mission, and project records can be structurally linked to the contact records they involve, so that suppression can be keyed on the link rather than on name text; the DPO owns the rule that decides which link types trigger suppression, and the DPO alone decides whether the residual risk of free text on unlinked records is accepted or needs a further control.",
+      "blocking": false,
+      "who_should_answer": "CRM system owner",
+      "source": "invented fact",
+      "challenge_id": null
+    }
+  ],
+  "invented_facts": [
+    {
+      "id": "A5",
+      "statement": "Each engagement record can be linked to one or more countries, and multi-country items appear under each linked country; records with no country link are excluded from country views and counted in the completeness indicator only where the viewing user is cleared to see the underlying record.",
+      "invented": true
+    },
+    {
+      "id": "A6",
+      "statement": "Contact records carry a confidentiality marker, and each user has a clearance value held in a central user-attribute store assigned by the data protection officer; a user with no clearance record is treated as having no clearance.",
+      "invented": true
+    },
+    {
+      "id": "A7",
+      "statement": "Email content is stored in the CRM or linked from it; if only metadata is stored, the history shows subject and date only, and subject lines are subject to the same suppression rule as other free-text fields on records linked to restricted contacts.",
+      "invented": true
+    },
+    {
+      "id": "A8",
+      "statement": "Completeness counts are computed per viewing user over the same clearance-filtered record set as the rest of the view, so a restricted unlinked or unstructured record is not counted for a user without clearance; the DPO must confirm that this filtering removes any inference risk from aggregate counts.",
+      "invented": true
+    },
+    {
+      "id": "A9",
+      "statement": "Engagement, mission, and project records can be structurally linked to the contact records they involve, so that suppression can be keyed on the link rather than on name text; the DPO owns the rule that decides which link types trigger suppression, and the DPO alone decides whether the residual risk of free text on unlinked records is accepted or needs a further control.",
+      "invented": true
+    }
+  ],
+  "success_criteria": [
+    {
+      "metric": "time for a project manager to assemble a pre-mission engagement briefing for a country",
+      "threshold": "under 10 minutes for countries with up to 500 logged records; for larger countries, the filtered default view loads within 10 minutes on the same task"
+    },
+    {
+      "metric": "share of project managers who report the history view contained the information they needed before a mission, measured in a post-launch survey, read alongside completeness figures",
+      "threshold": "at least 80% agree"
+    },
+    {
+      "metric": "proportion of records structurally linked to a restricted contact, including their free-text fields, visible to users without clearance, including PDF exports and completeness counts",
+      "threshold": "zero, verified by access audit and by a test set of linked records across all record types; a separate check confirms no free text of a suppressed linked record appears in exports"
+    },
+    {
+      "metric": "unlinked free-text residual risk (restricted person named in free text on a record with no structural link to a restricted contact)",
+      "threshold": "not claimed as zero; before launch the DPO must record written acceptance or specify a further control, and this decision is a launch gate"
+    }
+  ],
+  "summary": {
+    "rounds_run": 5,
+    "disagreement": [
+      {
+        "round": 1,
+        "open": 5,
+        "change": null
+      },
+      {
+        "round": 2,
+        "open": 1,
+        "change": -4
+      },
+      {
+        "round": 3,
+        "open": 1,
+        "change": 0
+      },
+      {
+        "round": 4,
+        "open": 1,
+        "change": 0
+      },
+      {
+        "round": 5,
+        "open": 0,
+        "change": -1
+      }
+    ],
+    "proposer_confidence": {
+      "score": 45,
+      "reason": "Scope is detailed, but several escalated challenges are unresolved (Legal approval of PDF exports, the Head of Country Engagement's decision on pagination above 500 records, and DPO acceptance of the unlinked free-text residual risk as a launch gate), and invented facts A5 to A9 still need the CRM owner's confirmation."
+    },
+    "critic_confidence": {
+      "score": 62,
+      "reason": "The core design is sound and deny-by-default with structural-link suppression, but several escalated decisions remain open: Legal's approval of offline PDF exports, DPO acceptance of the unlinked free-text residual risk, DPO sign-off on suppression link types, and the unverified data-completeness assumption A3."
+    }
+  }
+}
