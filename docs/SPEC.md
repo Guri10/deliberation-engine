@@ -128,14 +128,18 @@ README.md  DECISIONS.md (skeleton)  GLOSSARY.md  requirements.txt
 
 `runs/*` is git-ignored except `runs/sample/`.
 
-## Tests (Q24)
+## Tests (Q24, revised at /to-spec)
 
-No API calls; fake agent outputs only. They cover:
+One seam: the **model client**, a function that takes an agent's prompt and messages and returns its raw reply. The real one wraps the `anthropic` SDK. Tests pass a scripted fake that returns canned replies in order. The whole deliberation runs for real, and tests check only what comes out (Stop Reason, Rounds, Challenge States, Open Questions, Disagreement, retries in the transcript, rendered Markdown). They never call internal functions directly. No API calls.
+
+Covered:
 - Each stop reason, including "flat count is not a stall."
-- The consistency check and its fallback.
-- Challenge-state coverage: every open Challenge gets a state.
+- The consistency check, its retry, and its fallback.
+- Shape failure twice → error, trace saved.
+- Challenge limit drops extras and logs it.
+- Leftovers become blocking Open Questions; escalated Challenges and Invented Facts become Open Questions.
 - The Disagreement count and delta.
-- Markdown rendering of the Decision Document.
+- Markdown rendering of the Decision Document (six sections, in order).
 
 ## Defaults chosen without a question
 
