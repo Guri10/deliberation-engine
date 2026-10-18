@@ -9,18 +9,24 @@ from engine.deliberation import run_deliberation
 FEATURE_REQUEST = "Project managers should see the full engagement history before a new mission."
 
 
-def proposal(round_no: int, responses: list[dict] | None = None) -> str:
+A1 = {"id": "A1", "statement": "History means the last 5 years", "invented": False}
+
+
+def proposal(round_no: int, responses: list[dict] | None = None, assumptions: list[dict] | None = None) -> str:
     return json.dumps({
         "scope_in": [f"Engagement timeline per country (v{round_no})"],
         "scope_out": ["Other teams' confidential meeting notes"],
-        "assumptions": [{"id": "A1", "statement": "History means the last 5 years"}],
+        "assumptions": assumptions or [A1],
         "success_criteria": [{"metric": "Time to brief before a mission", "threshold": "under 10 minutes"}],
         "responses": responses or [],
     })
 
 
 def challenge(cid: str, text: str = "", target: str = "A1", type_: str = "objection") -> dict:
-    return {"id": cid, "target": target, "type": type_, "text": text or f"Challenge {cid} on {target}"}
+    return {
+        "id": cid, "target": target, "type": type_, "text": text or f"Challenge {cid} on {target}",
+        "who_should_answer": "Data protection officer",
+    }
 
 
 def state(cid: str, value: str, reason: str = "") -> dict:
@@ -38,10 +44,26 @@ def defend(cid: str) -> dict:
 DECISION = json.dumps({
     "scope_in": ["Engagement timeline per country"],
     "scope_out": ["Other teams' confidential meeting notes"],
-    "assumptions": [{"statement": "History means the last 5 years", "status": "Challenged-and-held"}],
-    "open_questions": ["Who approves access to confidential records?"],
+    "assumptions": [{"id": "A1", "statement": "History means the last 5 years", "status": "Challenged-and-held"}],
+    "open_questions": [{
+        "text": "Who approves access to confidential records?", "blocking": True, "who_should_answer": "Legal",
+    }],
     "success_criteria": [{"metric": "Time to brief before a mission", "threshold": "under 10 minutes"}],
 })
+
+
+def confidence(score: int, reason: str) -> str:
+    return json.dumps({"score": score, "reason": reason})
+
+
+PROPOSER_CONFIDENCE = confidence(85, "Scope is tight; retention period still a judgement call.")
+CRITIC_CONFIDENCE = confidence(55, "Sanctioned-contact visibility is unresolved.")
+CONFIDENCES = [PROPOSER_CONFIDENCE, CRITIC_CONFIDENCE]
+ENDING = CONFIDENCES + [DECISION]
+
+
+def open_questions_section(result) -> str:
+    return (result.run_dir / "decision_document.md").read_text().split("## Open Questions")[1].split("##")[0]
 
 
 class ScriptedClient:
@@ -64,7 +86,7 @@ def test_two_round_run_ends_satisfied_and_writes_trace_and_decision_document(tmp
     client = ScriptedClient([
         proposal(1), critique("CONTINUE", new=[challenge("C1")]),
         proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -83,7 +105,7 @@ def test_satisfied_in_round_one_is_retried_then_treated_as_continue_if_repeated(
     client = ScriptedClient([
         proposal(1), first_round_satisfied, first_round_satisfied,
         proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -110,7 +132,7 @@ def two_close_two_open_every_round(rounds: int) -> list[str]:
 
 
 def test_closing_two_and_opening_two_each_round_is_not_a_stall_and_runs_to_the_round_cap(tmp_path):
-    client = ScriptedClient(two_close_two_open_every_round(6) + [DECISION])
+    client = ScriptedClient(two_close_two_open_every_round(6) + ENDING)
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
@@ -129,7 +151,7 @@ def test_new_challenges_beyond_the_round_limit_are_dropped_and_logged(tmp_path):
         critique("CONTINUE", new=second, states=close_first_five),
         proposal(3, [defend(f"C{i}") for i in range(8, 11)]),
         critique("SATISFIED", states=[state(f"C{i}", "closed") for i in range(8, 11)]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -147,15 +169,16 @@ def test_challenge_escalated_in_round_two_becomes_an_open_question_and_allows_sa
     client = ScriptedClient([
         proposal(1), critique("CONTINUE", new=[challenge("C1", sanctions, type_="risk")]),
         proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "escalated")]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
     assert result.stop_reason == "satisfied"
     assert [(t.challenge.id, t.state) for t in result.challenges] == [("C1", "escalated")]
-    assert f"{sanctions} (C1; blocking; source: escalated)" in result.decision.open_questions
-    assert sanctions in (result.run_dir / "decision_document.md").read_text().split("## Open Questions")[1]
+    assert f"**Blocking:** {sanctions} (answer: Data protection officer; source: escalated, C1)" in (
+        open_questions_section(result)
+    )
 
 
 def test_proposer_sees_only_open_challenges(tmp_path):
@@ -171,7 +194,7 @@ def test_proposer_sees_only_open_challenges(tmp_path):
         proposal(2, [defend("C1"), defend("C2"), defend("C3")]),
         critique("CONTINUE", states=[state("C1", "closed"), state("C2", "open", "No baseline"), state("C3", "escalated")]),
         proposal(3, [defend("C2")]), critique("SATISFIED", states=[state("C2", "closed")]),
-        DECISION,
+        *ENDING,
     ])
 
     run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -193,7 +216,7 @@ def test_revise_and_concede_carry_the_quoted_critic_argument(tmp_path):
             {"challenge_id": "C2", "type": "Concede", "text": "Dropped.", "quote": "Challenge C2 on A1"},
         ]),
         critique("SATISFIED", states=[state("C1", "closed"), state("C2", "closed")]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -258,7 +281,7 @@ def test_critic_prompt_requires_a_data_access_and_confidentiality_challenge(tmp_
     client = ScriptedClient([
         proposal(1), critique("CONTINUE", new=[challenge("C1")]),
         proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
-        DECISION,
+        *ENDING,
     ])
 
     run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -274,7 +297,7 @@ def test_new_challenge_reusing_an_id_is_ignored_and_does_not_use_up_the_limit(tm
         proposal(2, [defend("C1")]), critique("CONTINUE", new=later, states=[state("C1", "closed")]),
         proposal(3, [defend(f"C{i}") for i in (2, 3, 4)]),
         critique("SATISFIED", states=[state(f"C{i}", "closed") for i in (2, 3, 4)]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -287,7 +310,7 @@ def test_one_malformed_reply_is_retried_and_the_retry_shows_in_the_trace(tmp_pat
     client = ScriptedClient([
         "not json at all", proposal(1), critique("CONTINUE", new=[challenge("C1")]),
         proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -313,7 +336,7 @@ C3_STILL_OPEN = [state("C1", "closed"), state("C2", "closed"), state("C3", "open
 def test_satisfied_with_a_challenge_open_is_retried_quoting_it_and_a_corrected_reply_is_accepted(tmp_path):
     client = ScriptedClient(three_challenges_then(
         critique("SATISFIED", states=C3_STILL_OPEN), critique("SATISFIED", states=ALL_CLOSED),
-    ) + [DECISION])
+    ) + ENDING)
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
@@ -328,7 +351,7 @@ def test_satisfied_with_a_challenge_open_twice_is_treated_as_continue_and_logged
     client = ScriptedClient(three_challenges_then(
         critique("SATISFIED", states=C3_STILL_OPEN), critique("SATISFIED", states=C3_STILL_OPEN),
         proposal(3, [defend("C3")]), critique("SATISFIED", states=[state("C3", "closed")]),
-    ) + [DECISION])
+    ) + ENDING)
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
@@ -341,7 +364,7 @@ def test_satisfied_with_a_challenge_open_twice_is_treated_as_continue_and_logged
 
 def test_continue_with_nothing_open_and_nothing_new_twice_ends_the_run_as_critic_exhausted(tmp_path):
     nothing_left = critique("CONTINUE", states=ALL_CLOSED)
-    client = ScriptedClient(three_challenges_then(nothing_left, nothing_left) + [DECISION])
+    client = ScriptedClient(three_challenges_then(nothing_left, nothing_left) + ENDING)
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
@@ -354,7 +377,7 @@ def test_continue_with_nothing_open_and_nothing_new_twice_ends_the_run_as_critic
 
 def test_continue_whose_only_new_challenge_reuses_an_id_counts_as_nothing_new(tmp_path):
     reused_only = critique("CONTINUE", new=[challenge("C1", "Same id again")], states=ALL_CLOSED)
-    client = ScriptedClient(three_challenges_then(reused_only, reused_only) + [DECISION])
+    client = ScriptedClient(three_challenges_then(reused_only, reused_only) + ENDING)
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
@@ -378,7 +401,7 @@ def test_summarizer_failure_trace_keeps_the_stop_reason(tmp_path):
     client = ScriptedClient([
         proposal(1), critique("CONTINUE", new=[challenge("C1")]),
         proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
-        "bad decision", "bad decision",
+        *CONFIDENCES, "bad decision", "bad decision",
     ])
 
     error = invalid_twice(client, tmp_path)
@@ -393,7 +416,7 @@ def test_summarizer_retry_shows_in_the_trace(tmp_path):
     client = ScriptedClient([
         proposal(1), critique("CONTINUE", new=[challenge("C1")]),
         proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
-        "bad decision", DECISION,
+        *CONFIDENCES, "bad decision", DECISION,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -410,17 +433,13 @@ def test_two_rounds_in_a_row_with_no_movement_end_the_run_as_stalled(tmp_path):
         proposal(1), critique("CONTINUE", new=[challenge("C1")]),
         proposal(2, [defend("C1")]), critique("CONTINUE", states=[still_open("C1")]),
         proposal(3, [defend("C1")]), critique("CONTINUE", states=[still_open("C1")]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
     assert result.stop_reason == "stalled"
     assert len(result.rounds) == 3
-
-
-def open_questions_section(result) -> str:
-    return (result.run_dir / "decision_document.md").read_text().split("## Open Questions")[1].split("##")[0]
 
 
 def test_at_a_stall_each_open_challenge_becomes_a_blocking_open_question_tagged_stalled(tmp_path):
@@ -436,26 +455,26 @@ def test_at_a_stall_each_open_challenge_becomes_a_blocking_open_question_tagged_
         critique("CONTINUE", states=stuck + [state("C3", "closed")]),
         proposal(3, [defend("C1"), defend("C2")]), critique("CONTINUE", states=stuck),
         proposal(4, [defend("C1"), defend("C2")]), critique("CONTINUE", states=stuck),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
     assert result.stop_reason == "stalled"
     section = open_questions_section(result)
-    assert f"{retention} (C1; blocking; source: stalled)" in section
-    assert f"{sanctions} (C2; blocking; source: stalled)" in section
+    assert f"**Blocking:** {retention} (answer: Data protection officer; source: stalled, C1)" in section
+    assert f"**Blocking:** {sanctions} (answer: Data protection officer; source: stalled, C2)" in section
     assert settled not in section
 
 
 def test_at_the_round_cap_each_open_challenge_becomes_a_blocking_open_question_tagged_round_cap(tmp_path):
-    client = ScriptedClient(two_close_two_open_every_round(6) + [DECISION])
+    client = ScriptedClient(two_close_two_open_every_round(6) + ENDING)
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
 
     section = open_questions_section(result)
-    assert "Challenge C11 on A1 (C11; blocking; source: round cap)" in section
-    assert "Challenge C12 on A1 (C12; blocking; source: round cap)" in section
+    assert "**Blocking:** Challenge C11 on A1 (answer: Data protection officer; source: round cap, C11)" in section
+    assert "**Blocking:** Challenge C12 on A1 (answer: Data protection officer; source: round cap, C12)" in section
     assert "C10" not in section
 
 
@@ -473,7 +492,7 @@ def test_a_revise_concede_or_escalation_alone_counts_as_movement(tmp_path, round
         critique("CONTINUE", states=[round_three_state, still_open("C2")]),
         proposal(4, [defend(cid) for cid in still_open_after_three]),
         critique("SATISFIED", states=[state(cid, "closed") for cid in still_open_after_three]),
-        DECISION,
+        *ENDING,
     ])
 
     result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
@@ -495,3 +514,140 @@ def test_proposer_must_respond_to_exactly_the_open_challenges(tmp_path):
     error = invalid_twice(client, tmp_path)
 
     assert "C1" in str(error) and "C2" in str(error)
+
+
+def test_disagreement_and_its_change_per_round_appear_in_trace_and_summary(tmp_path):
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1"), challenge("C2"), challenge("C3")]),
+        proposal(2, [defend("C1"), defend("C2"), defend("C3")]),
+        critique("CONTINUE", new=[challenge("C4")], states=[state("C1", "closed"), state("C2", "closed"), still_open("C3")]),
+        proposal(3, [defend("C3"), defend("C4")]),
+        critique("SATISFIED", states=[state("C3", "closed"), state("C4", "closed")]),
+        *ENDING,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    trace = (result.run_dir / "trace.md").read_text()
+    rounds = trace.split("## Round ")[1:]
+    assert "**Disagreement:** 3 open (first round)" in rounds[0]
+    assert "**Disagreement:** 2 open (-1)" in rounds[1]
+    assert "**Disagreement:** 0 open (-2)" in rounds[2]
+    summary = (result.run_dir / "decision_document.md").read_text().split("## Deliberation Summary")[1]
+    assert "- Disagreement per round: R1 3, R2 2 (-1), R3 0 (-2)" in summary
+
+
+def test_trace_shows_response_type_counts_per_round(tmp_path):
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge(f"C{i}") for i in range(1, 5)]),
+        proposal(2, [
+            defend("C1"), defend("C2"),
+            {"challenge_id": "C3", "type": "Revise", "text": "Changed.", "quote": "Challenge C3"},
+            {"challenge_id": "C4", "type": "Concede", "text": "Dropped.", "quote": "Challenge C4"},
+        ]),
+        critique("SATISFIED", states=[state(f"C{i}", "closed") for i in range(1, 5)]),
+        *ENDING,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    rounds = (result.run_dir / "trace.md").read_text().split("## Round ")[1:]
+    assert "**Response counts:** Defend 0, Revise 0, Concede 0" in rounds[0]
+    assert "**Response counts:** Defend 2, Revise 1, Concede 1" in rounds[1]
+
+
+def test_both_agents_confidence_and_reasons_appear_in_the_summary_and_reach_the_summarizer(tmp_path):
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1")]),
+        proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
+        *ENDING,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    summary = (result.run_dir / "decision_document.md").read_text().split("## Deliberation Summary")[1]
+    assert "- Proposer confidence: 85 (Scope is tight; retention period still a judgement call.)" in summary
+    assert "- Critic confidence: 55 (Sanctioned-contact visibility is unresolved.)" in summary
+    confidence_calls = client.calls[4:6]
+    assert all("90 to 100: would ship as is" in c["messages"][0]["content"] for c in confidence_calls)
+    assert all("50: major gaps remain" in c["messages"][0]["content"] for c in confidence_calls)
+    summarizer_input = client.contents("Summarizer")[0]
+    assert "Sanctioned-contact visibility is unresolved." in summarizer_input
+
+
+def test_every_assumption_shows_its_final_status_and_the_round_it_was_raised(tmp_path):
+    a2 = {"id": "A2", "statement": "Only logged meetings count as engagement", "invented": False}
+    decision = json.dumps({**json.loads(DECISION), "assumptions": [
+        {"id": "A1", "statement": "History means the last 20 years", "status": "Revised"},
+        {"id": "A2", "statement": "Only logged meetings count as engagement", "status": "Accepted"},
+    ]})
+    revise = {"challenge_id": "C1", "type": "Revise", "text": "Now 20 years.", "quote": "Challenge C1"}
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1")]),
+        proposal(2, [revise], [A1, a2]), critique("SATISFIED", states=[state("C1", "closed")]),
+        *CONFIDENCES, decision,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    section = (result.run_dir / "decision_document.md").read_text().split("## Surfaced Assumptions")[1].split("##")[0]
+    assert "- A1: History means the last 20 years (Revised; raised in round 1)" in section
+    assert "- A2: Only logged meetings count as engagement (Accepted; raised in round 2)" in section
+
+
+def test_invented_facts_get_their_own_section_and_are_each_a_non_blocking_open_question(tmp_path):
+    invented = {"id": "A2", "statement": "Each contact record has a confidentiality level field", "invented": True}
+    client = ScriptedClient([
+        proposal(1, assumptions=[A1, invented]), critique("CONTINUE", new=[challenge("C1")]),
+        proposal(2, [defend("C1")], [A1, invented]), critique("SATISFIED", states=[state("C1", "closed")]),
+        *CONFIDENCES, json.dumps({**json.loads(DECISION), "assumptions": [
+            {"id": "A1", "statement": A1["statement"], "status": "Challenged-and-held"},
+            {"id": "A2", "statement": invented["statement"], "status": "Accepted"},
+        ]}),
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    markdown = (result.run_dir / "decision_document.md").read_text()
+    invented_section = markdown.split("## Invented Facts")[1].split("##")[0]
+    assert "- A2: Each contact record has a confidentiality level field" in invented_section
+    assert "A1" not in invented_section
+    assert (
+        "**Non-blocking:** Confirm A2: Each contact record has a confidentiality level field "
+        "(answer: CRM system owner; source: invented fact)"
+    ) in open_questions_section(result)
+
+
+def test_decision_document_has_six_sections_in_order_with_the_stop_reason_in_the_header(tmp_path):
+    client = ScriptedClient([
+        proposal(1), critique("CONTINUE", new=[challenge("C1")]),
+        proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
+        *ENDING,
+    ])
+
+    result = run_deliberation(FEATURE_REQUEST, client, runs_dir=tmp_path)
+
+    markdown = (result.run_dir / "decision_document.md").read_text()
+    header, *_ = markdown.split("## ")
+    assert "satisfied" in header
+    sections = [line.removeprefix("## ") for line in markdown.splitlines() if line.startswith("## ")]
+    assert sections == [
+        "Agreed Scope", "Surfaced Assumptions", "Open Questions",
+        "Invented Facts", "Success Criteria", "Deliberation Summary",
+    ]
+    assert (
+        "**Blocking:** Who approves access to confidential records? (answer: Legal; source: deliberation)"
+    ) in open_questions_section(result)
+
+
+def test_summarizer_must_give_a_status_for_every_assumption_raised(tmp_path):
+    a2 = {"id": "A2", "statement": "Only logged meetings count", "invented": False}
+    client = ScriptedClient([
+        proposal(1, assumptions=[A1, a2]), critique("CONTINUE", new=[challenge("C1")]),
+        proposal(2, [defend("C1")]), critique("SATISFIED", states=[state("C1", "closed")]),
+        *CONFIDENCES, DECISION, DECISION,
+    ])
+
+    error = invalid_twice(client, tmp_path)
+
+    assert "Summarizer reply was invalid twice" in str(error) and "A2" in str(error)

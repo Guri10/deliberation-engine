@@ -3,8 +3,9 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from engine.agents import AgentReplyError, ModelClient, criticize, propose, summarize
+from engine.agents import AgentReplyError, ModelClient, criticize, propose, rate_confidence, summarize
 from engine.config import FIRST_ROUND_CHALLENGE_LIMIT, LATER_ROUND_CHALLENGE_LIMIT, ROUND_CAP
+from engine.decision import build_decision_document
 from engine.models import CriticTurn, DecisionDocument, ProposerTurn, Round, StopReason, TrackedChallenge
 from engine.render import format_round, new_run_dir, notes_block, write_decision, write_trace
 
@@ -87,25 +88,6 @@ def apply_critic_turn(
     return critic_turn.model_copy(update={"new_challenges": kept}), notes
 
 
-def challenge_open_questions(challenges: list[TrackedChallenge], reason: StopReason) -> list[str]:
-    """Open Questions that come from Challenges, added by code so they never depend on the Summarizer.
-
-    Escalated Challenges always become blocking Open Questions, since a human must decide them.
-    When the run stalled or ran out of Rounds, every Challenge still open becomes a blocking one too,
-    tagged with the Stop Reason.
-    """
-    sources = {"escalated": "escalated"}
-    if reason == "stalled":
-        sources["open"] = "stalled"
-    elif reason == "round_cap":
-        sources["open"] = "round cap"
-    return [
-        f"{t.challenge.text} ({t.challenge.id}; blocking; source: {sources[t.state]})"
-        for t in challenges
-        if t.state in sources
-    ]
-
-
 def run_deliberation(
     feature_request: str,
     client: ModelClient,
@@ -115,11 +97,18 @@ def run_deliberation(
     rounds: list[Round] = []
     ledger: dict[str, TrackedChallenge] = {}
     reason: StopReason | None = None
-    summarizer_notes: list[str] = []
+    ending_notes: list[str] = []
     try:
         reason = _run_rounds(feature_request, client, rounds, ledger, round_cap)
         challenges = list(ledger.values())
-        decision = summarize(client, feature_request, rounds, challenges, summarizer_notes)
+        final_proposal = rounds[-1].proposal
+        proposer_confidence = rate_confidence(
+            client, "proposer", feature_request, final_proposal, challenges, ending_notes
+        )
+        critic_confidence = rate_confidence(client, "critic", feature_request, final_proposal, challenges, ending_notes)
+        summarizer_turn = summarize(
+            client, feature_request, rounds, challenges, proposer_confidence, critic_confidence, ending_notes
+        )
     except AgentReplyError as error:
         footer = [notes_block(error.notes)] if error.notes else []
         footer += [f"**Stop reason:** {reason}"] if reason else []
@@ -128,12 +117,11 @@ def run_deliberation(
         write_trace(error.run_dir, feature_request, rounds, footer)
         raise
 
-    from_challenges = challenge_open_questions(challenges, reason)
-    decision = decision.model_copy(update={"open_questions": decision.open_questions + from_challenges})
+    decision = build_decision_document(summarizer_turn, rounds, challenges, reason, proposer_confidence, critic_confidence)
     run_dir = new_run_dir(runs_dir)
-    footer = [notes_block(summarizer_notes)] if summarizer_notes else []
+    footer = [notes_block(ending_notes)] if ending_notes else []
     write_trace(run_dir, feature_request, rounds, footer + [f"**Stop reason:** {reason}"])
-    write_decision(run_dir, decision, reason, len(rounds))
+    write_decision(run_dir, decision)
     return RunResult(stop_reason=reason, rounds=rounds, challenges=challenges, decision=decision, run_dir=run_dir)
 
 
@@ -162,9 +150,16 @@ def _run_rounds(
         )
         critic_turn, ledger_notes = apply_critic_turn(ledger, critic_turn, round_number)
         notes += ledger_notes
-        rounds.append(Round(number=round_number, proposal=proposal, critic_turn=critic_turn, notes=notes))
-        print(format_round(rounds[-1]))
         open_count = sum(t.state == "open" for t in ledger.values())
+        rounds.append(Round(
+            number=round_number,
+            proposal=proposal,
+            critic_turn=critic_turn,
+            notes=notes,
+            disagreement=open_count,
+            disagreement_change=open_count - rounds[-1].disagreement if rounds else None,
+        ))
+        print(format_round(rounds[-1]))
         reason = stop_reason(rounds, open_count, critic_exhausted, round_cap)
     return reason
 

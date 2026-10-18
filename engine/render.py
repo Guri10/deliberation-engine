@@ -3,7 +3,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from engine.models import DecisionDocument, Response, Round, StopReason, SuccessCriterion
+from engine.models import DecisionDocument, OpenQuestion, Response, Round, SuccessCriterion, SurfacedAssumption
 
 
 def _bullets(items: list[str]) -> str:
@@ -27,6 +27,11 @@ def _response(r: Response) -> str:
     return f"{r.challenge_id} {r.type}{quote}: {r.text}"
 
 
+def _response_counts(responses: list[Response]) -> str:
+    types = [r.type for r in responses]
+    return ", ".join(f"{t} {types.count(t)}" for t in ("Defend", "Revise", "Concede"))
+
+
 def format_round(round_: Round) -> str:
     proposal, critic_turn = round_.proposal, round_.critic_turn
     return "\n".join([
@@ -37,6 +42,7 @@ def format_round(round_: Round) -> str:
         f"**Assumptions:**\n{_bullets([f'{a.id}: {a.statement}' for a in proposal.assumptions])}",
         f"**Success criteria:**\n{_criteria(proposal.success_criteria)}",
         f"**Responses:**\n{_bullets([_response(r) for r in proposal.responses])}",
+        f"**Response counts:** {_response_counts(proposal.responses)}",
         "",
         f"### Critic: {critic_turn.verdict}",
         "**Challenge states:**",
@@ -46,31 +52,61 @@ def format_round(round_: Round) -> str:
         ]),
         "**New challenges:**",
         _bullets([f"{c.id} [{c.type}] on {c.target}: {c.text}" for c in critic_turn.new_challenges]),
+        f"**Disagreement:** {round_.disagreement} open ({_change(round_.disagreement_change, 'first round')})",
         *([notes_block(round_.notes)] if round_.notes else []),
         "",
     ])
 
 
-def render_decision(decision: DecisionDocument, stop_reason: StopReason, rounds_run: int) -> str:
+def _change(change: int | None, if_none: str) -> str:
+    return if_none if change is None else f"{change:+d}"
+
+
+def _open_question(q: OpenQuestion) -> str:
+    kind = "Blocking" if q.blocking else "Non-blocking"
+    source = q.source + (f", {q.challenge_id}" if q.challenge_id else "")
+    return f"**{kind}:** {q.text} (answer: {q.who_should_answer}; source: {source})"
+
+
+def _assumption(a: SurfacedAssumption) -> str:
+    raised = f"raised in round {a.round_raised}" if a.round_raised is not None else "round raised unknown"
+    return f"{a.id}: {a.statement} ({a.status}; {raised})"
+
+
+def render_decision(decision: DecisionDocument) -> str:
+    summary = decision.summary
+    disagreement = ", ".join(
+        f"R{d.round} {d.open}" + ("" if d.change is None else f" ({_change(d.change, '')})")
+        for d in summary.disagreement
+    )
+    confidence = [
+        f"- {agent} confidence: {c.score} ({c.reason})"
+        for agent, c in (("Proposer", summary.proposer_confidence), ("Critic", summary.critic_confidence))
+    ]
     return "\n".join([
         "# Decision Document",
-        f"_Stop reason: {stop_reason}_",
+        f"_Stop reason: {decision.stop_reason}_",
         "",
         "## Agreed Scope",
         _scope(decision.scope_in, decision.scope_out),
         "",
         "## Surfaced Assumptions",
-        _bullets([f"{a.statement} ({a.status})" for a in decision.assumptions]),
+        _bullets([_assumption(a) for a in decision.assumptions]),
         "",
         "## Open Questions",
-        _bullets(decision.open_questions),
+        _bullets([_open_question(q) for q in decision.open_questions]),
+        "",
+        "## Invented Facts",
+        _bullets([f"{a.id}: {a.statement}" for a in decision.invented_facts]),
         "",
         "## Success Criteria",
         _criteria(decision.success_criteria),
         "",
         "## Deliberation Summary",
-        f"- Rounds run: {rounds_run}",
-        f"- Stop reason: {stop_reason}",
+        f"- Rounds run: {summary.rounds_run}",
+        f"- Stop reason: {decision.stop_reason}",
+        f"- Disagreement per round: {disagreement}",
+        *confidence,
         "",
     ])
 
@@ -89,6 +125,6 @@ def write_trace(run_dir: Path, feature_request: str, rounds: list[Round], footer
     (run_dir / "trace.md").write_text("\n".join(trace))
 
 
-def write_decision(run_dir: Path, decision: DecisionDocument, stop_reason: StopReason, rounds_run: int) -> None:
+def write_decision(run_dir: Path, decision: DecisionDocument) -> None:
     (run_dir / "decision_document.json").write_text(decision.model_dump_json(indent=2))
-    (run_dir / "decision_document.md").write_text(render_decision(decision, stop_reason, rounds_run))
+    (run_dir / "decision_document.md").write_text(render_decision(decision))

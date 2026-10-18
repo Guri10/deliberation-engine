@@ -3,14 +3,22 @@
 import json
 from pathlib import Path
 from collections.abc import Callable
-from typing import Protocol, TypeVar
+from typing import Literal, Protocol, TypeVar
 
 import anthropic
 from anthropic.types import MessageParam
 from pydantic import BaseModel, ValidationError
 
 from engine.config import MAX_TOKENS, MODEL, PROMPTS_DIR, SYSTEM_CONTEXT
-from engine.models import Challenge, CriticTurn, DecisionDocument, ProposerTurn, Round, TrackedChallenge
+from engine.models import (
+    Challenge,
+    Confidence,
+    CriticTurn,
+    ProposerTurn,
+    Round,
+    SummarizerTurn,
+    TrackedChallenge,
+)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -152,16 +160,49 @@ def criticize(
     return _ask(client, "critic", messages, CriticTurn, notes, states_cover_open_challenges)
 
 
+def rate_confidence(
+    client: ModelClient,
+    agent: Literal["proposer", "critic"],
+    feature_request: str,
+    final_proposal: ProposerTurn,
+    challenges: list[TrackedChallenge],
+    notes: list[str],
+) -> Confidence:
+    """Ask the Proposer or the Critic, once the deliberation has ended, how ready the final scope is."""
+    content = (
+        f"{(PROMPTS_DIR / 'confidence.md').read_text()}"
+        f"\n\nFeature request:\n{feature_request}"
+        f"\n\nFinal proposal:\n{final_proposal.model_dump_json(indent=2)}"
+        f"\n\nEvery challenge with its final state:\n{_json(challenges)}"
+    )
+    return _ask(client, agent, _user(content), Confidence, notes)
+
+
 def summarize(
     client: ModelClient,
     feature_request: str,
     rounds: list[Round],
     challenges: list[TrackedChallenge],
+    proposer_confidence: Confidence,
+    critic_confidence: Confidence,
     notes: list[str],
-) -> DecisionDocument:
+) -> SummarizerTurn:
+    scores = "\n".join(
+        f"{agent}: {c.score} ({c.reason})"
+        for agent, c in (("Proposer", proposer_confidence), ("Critic", critic_confidence))
+    )
     content = (
         f"Feature request:\n{feature_request}"
         f"\n\nFull deliberation transcript:\n{_json(rounds)}"
         f"\n\nEvery challenge with its final state:\n{_json(challenges)}"
+        f"\n\nConfidence scores:\n{scores}"
     )
-    return _ask(client, "summarizer", _user(content), DecisionDocument, notes)
+    raised_ids = sorted({a.id for r in rounds for a in r.proposal.assumptions})
+
+    def covers_every_assumption(turn: SummarizerTurn) -> str | None:
+        given = sorted(a.id for a in turn.assumptions)
+        if given == raised_ids:
+            return None
+        return f"give one status for exactly the assumptions raised {raised_ids}, not {given}"
+
+    return _ask(client, "summarizer", _user(content), SummarizerTurn, notes, covers_every_assumption)

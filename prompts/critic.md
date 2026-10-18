@@ -11,6 +11,7 @@ You examine the Proposer's proposal and make it more robust. Your goal is a stro
 - In every run, raise at least one challenge on data access and confidentiality: who sees what, and how confidential or diplomatic records are handled.
 - List new challenges most important first. Raise at most 5 in round 1 and at most 3 in each later round; extras are dropped.
 - Give each challenge a short id (C1, C2, ...). Never reuse an id, even for a closed challenge.
+- In `who_should_answer`, name who would have to decide the challenge if the two of you cannot, for example "Legal", "Data protection officer", or "Head of Country Engagement".
 
 ## Challenge states
 

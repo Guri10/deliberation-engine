@@ -51,7 +51,7 @@ Rules:
 
 JSON with:
 - `verdict`: `SATISFIED` or `CONTINUE`.
-- `new_challenges`: each has `id`, `target` (an Assumption or Success Criterion id), `type` (`question`, `objection`, or `risk`), and `text`, ranked by importance.
+- `new_challenges`: each has `id`, `target` (an Assumption or Success Criterion id), `type` (`question`, `objection`, or `risk`), `text`, and `who_should_answer` (who decides it if the agents cannot), ranked by importance.
 - `challenge_states`: one entry for every Challenge that was open at the start of the turn, with state `open` (plus a reason), `closed`, or `escalated`.
 
 Rules:
@@ -61,7 +61,7 @@ Rules:
 
 ### Summarizer (Q7, Q20)
 
-- Runs once, after the loop ends. Returns the Decision Document as JSON only.
+- Runs once, after the loop ends. Returns its part of the Decision Document as JSON only: scope, Assumption Statuses, its own Open Questions, Success Criteria. Code adds the rest (rounds raised, Open Questions from Challenges and Invented Facts, Disagreement, Confidence).
 - Code renders the Markdown from that JSON. No LLM is involved in rendering.
 
 ## Validation (Q19, Q27)
@@ -102,26 +102,27 @@ A flat Disagreement count does not mean a stall. If two Challenges close and two
 
 Each run writes `runs/<timestamp>/`:
 - `trace.md`: every Round, also printed to the console.
-- `decision_document.json`: from the Summarizer.
+- `decision_document.json`: the Summarizer's turn plus what code adds.
 - `decision_document.md`: rendered from the JSON.
 
 Decision Document sections, in order:
 1. **Agreed Scope:** in-scope items, out-of-scope items.
 2. **Surfaced Assumptions:** statement, Assumption Status (Accepted, Challenged-and-held, Revised, or Dropped), round raised.
-3. **Open Questions:** text, blocking or non-blocking, who should answer, source (escalated, invented fact, stalled, round cap).
-4. **Invented Facts:** the `invented: true` Assumptions, each also listed as a non-blocking Open Question.
+3. **Open Questions:** text, blocking or non-blocking, who should answer, source (escalated, invented fact, stalled, round cap, or deliberation for the Summarizer's own).
+4. **Invented Facts:** the `invented: true` Assumptions in the final proposal, each also listed as a non-blocking Open Question for the CRM system owner.
 5. **Success Criteria:** metric and threshold.
 6. **Deliberation Summary:** rounds run, stop reason, Disagreement per round, both Confidence scores with their reasons.
 
 ## Repo layout (Q24, Q25, Q26)
 
 ```
-prompts/          system_context.md, proposer.md, critic.md, summarizer.md
+prompts/          system_context.md, proposer.md, critic.md, summarizer.md, confidence.md
 engine/
   config.py       model name, round cap, default Feature Request
   models.py       Pydantic shapes
-  agents.py       one function per agent: load prompt, call Claude, check output
+  agents.py       one function per agent (plus rate_confidence for the Proposer and Critic): load prompt, call Claude, check output
   deliberation.py round loop, consistency check, stop rule
+  decision.py     builds the Decision Document from the Summarizer's turn and the run
   render.py       Decision Document JSON → Markdown; trace writer
 main.py           CLI entry point
 tests/            pytest, no API calls
