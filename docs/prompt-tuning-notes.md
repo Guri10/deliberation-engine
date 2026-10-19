@@ -69,3 +69,12 @@ Two "goes cold" runs on these final prompts:
 - **Tension kept:** the Summarizer raised who accepts accountability for log completeness, because the Proposer's Defend assigned it to the Head of Country Engagement without that role confirming.
 
 The sample uses Example 3 ("goes cold"), not the default request: no default-request run on the tuned prompts had a Defend.
+
+## Samples after #9 (agent memory)
+
+After #9 the agents get each open Challenge's history, Settled Challenges, and Proposal Changes, all as JSON. The sample was regenerated on that code with `ROUND_CAP = 9`. Defends stayed rare: over 12 runs of 4 requests, 1 run had a Defend (old code: 2 of 12). No single run met all three #8 checks, so `runs/sample/` now holds two runs:
+
+- `defend/` (Executives request): C2 Defend in Round 3 answers the Critic's earlier reason and points to A2 and A3; the Critic closed it. No escalation.
+- `escalation/` (two teams, same ministry): C1 escalated to the Data protection officer, with blocking Open Questions. No Defend.
+
+Known flaw in `escalation/`: one blocking Open Question repeats C1's original text, which the Proposer's Revise had already answered. Code builds escalated Open Questions from the Challenge text, not from what is still open.

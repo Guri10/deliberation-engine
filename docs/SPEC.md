@@ -30,8 +30,8 @@ Build a two-agent system (Proposer and Critic, plus a Summarizer) that takes a v
 
 | Agent | Sees |
 |---|---|
-| Proposer | System context, Feature Request, its last proposal, open Challenges |
-| Critic | System context, Feature Request, current proposal, all past Challenges with their state |
+| Proposer | System context, Feature Request, its last proposal, open Challenges with their Challenge History, Settled Challenges |
+| Critic | System context, Feature Request, current proposal, Proposal Changes, all past Challenges with their state, Challenge History for open ones |
 | Summarizer | Full transcript, both confidence scores |
 
 ### Proposer turn (Q10, Q13, Q14, Q17, Q23)
@@ -126,7 +126,7 @@ engine/
   render.py       Decision Document JSON → Markdown; trace writer
 main.py           CLI entry point
 tests/            pytest, no API calls
-runs/sample/      one committed run of Example 3
+runs/sample/      two committed runs: defend/ and escalation/
 README.md  DECISIONS.md (skeleton)  GLOSSARY.md  requirements.txt
 ```
 
@@ -134,7 +134,7 @@ README.md  DECISIONS.md (skeleton)  GLOSSARY.md  requirements.txt
 
 ## Tests (Q24, revised at /to-spec)
 
-One seam: the **model client**, a function that takes an agent's system prompt, messages, and expected reply shape, and returns its raw reply text. The real one wraps the `anthropic` SDK. Tests pass a scripted fake that returns canned replies in order. The whole deliberation runs for real, and tests check only what comes out (Stop Reason, Rounds, Challenge States, Open Questions, Disagreement, retries in the transcript, rendered Markdown). They never call internal functions directly. No API calls.
+One seam: the **model client**, a function that takes an agent's system prompt, messages, and expected reply shape, and returns its raw reply text. The real one wraps the `anthropic` SDK. Tests pass a scripted fake that returns canned replies in order. The whole deliberation runs for real, and tests check only what comes out (Stop Reason, Rounds, Challenge States, Open Questions, Disagreement, retries in the transcript, rendered Markdown). They never call internal functions directly, with one exception: `proposal_changes` (#9) is a pure function tested on its own. No API calls.
 
 Covered:
 - Each stop reason, including "flat count is not a stall."
@@ -158,5 +158,5 @@ Covered:
 1. `engine/models.py` and the stop rule in `engine/deliberation.py`, test-first.
 2. `engine/agents.py` and the three prompts.
 3. `engine/render.py`, `main.py`, and the README.
-4. A live run of Example 3 ("goes cold"), committed to `runs/sample/`. Example 2 was run too, but on the tuned prompts none of its runs had a Defend that held (see `docs/prompt-tuning-notes.md`).
+4. A live run of Example 3 ("goes cold"), committed to `runs/sample/` (replaced in #9 by two runs, see `docs/prompt-tuning-notes.md`). Example 2 was run too, but on the tuned prompts none of its runs had a Defend that held (see `docs/prompt-tuning-notes.md`).
 5. The `DECISIONS.md` skeleton.

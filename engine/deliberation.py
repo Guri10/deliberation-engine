@@ -137,16 +137,9 @@ def _run_rounds(
     while reason is None:
         round_number = len(rounds) + 1
         notes: list[str] = []
-        open_challenges = [t for t in ledger.values() if t.state == "open"]
-        proposal = propose(
-            client,
-            feature_request,
-            rounds[-1].proposal if rounds else None,
-            open_challenges,
-            notes,
-        )
+        proposal = propose(client, feature_request, rounds, list(ledger.values()), notes)
         critic_turn, critic_exhausted = _consistent_critic_turn(
-            client, feature_request, round_number, proposal, list(ledger.values()), notes
+            client, feature_request, round_number, proposal, list(ledger.values()), rounds, notes
         )
         critic_turn, ledger_notes = apply_critic_turn(ledger, critic_turn, round_number)
         notes += ledger_notes
@@ -170,6 +163,7 @@ def _consistent_critic_turn(
     round_number: int,
     proposal: ProposerTurn,
     past: list[TrackedChallenge],
+    rounds: list[Round],
     notes: list[str],
 ) -> tuple[CriticTurn, bool]:
     """Get a Critic turn whose Verdict fits its Challenge States, retrying once (ADR-0001).
@@ -178,12 +172,12 @@ def _consistent_critic_turn(
     with nothing left to discuss ends the run. Returns the turn and whether the Critic is exhausted.
     """
     known_ids = {t.challenge.id for t in past}
-    critic_turn = criticize(client, feature_request, round_number, proposal, past, notes)
+    critic_turn = criticize(client, feature_request, round_number, proposal, past, rounds, notes)
     problem = find_contradiction(critic_turn, round_number, known_ids)
     if problem is None:
         return critic_turn, False
     notes.append(f"Critic contradicted itself, retried: {problem}")
-    critic_turn = criticize(client, feature_request, round_number, proposal, past, notes, (critic_turn, problem))
+    critic_turn = criticize(client, feature_request, round_number, proposal, past, rounds, notes, (critic_turn, problem))
     problem = find_contradiction(critic_turn, round_number, known_ids)
     if problem is None:
         return critic_turn, False

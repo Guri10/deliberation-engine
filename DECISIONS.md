@@ -15,6 +15,17 @@ What changed the prompts most during tuning (notes in `docs/prompt-tuning-notes.
 - Then the Critic became too easy to satisfy (one run never defined "cold"). So missing definitions now count as scope, and the Critic re-reads what changed before saying Satisfied.
 - The biggest fix was in the code, not a prompt. The Proposer was never shown the Critic's reason for keeping a challenge open, so it kept answering the old question. That is why the "goes cold" run hit the round cap.
 
+### What each agent remembers between Rounds
+
+No agent remembers anything on its own. Each call gets only what code puts in the message. At first the Proposer saw only the open challenges and the Critic's latest reason. So it could undo a fix for a challenge that was already closed, and it could not tell what it had said two Rounds earlier. The Critic saw only the current proposal, so it had to trust the Proposer when it said "I revised this".
+
+Now code builds three things from the Rounds it already keeps:
+- **Challenge History** for each open challenge (both agents): every Response and every Critic state, Round by Round.
+- **Settled Challenges** (Proposer only): one line for each closed or escalated challenge, so it keeps those fixes in place.
+- **Proposal Changes** (Critic only): which assumptions, scope items, and success criteria were added, removed, or changed. These are for information only: code never uses them to judge a Response (ADR-0001).
+
+I chose a history for each challenge over sending every past turn. It uses fewer tokens, and it shows each agent only the argument it is working on. A full transcript of everything it said before pulls an agent toward sticking with its earlier positions.
+
 ## How termination works and what alternatives I considered
 
 Each Round, the Critic marks every open challenge as `open`, `closed`, or `escalated`, and gives a verdict. After each Round, code checks these in order:

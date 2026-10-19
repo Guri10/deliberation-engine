@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Literal, Protocol, TypeVar
 
 import anthropic
@@ -11,11 +11,17 @@ from pydantic import BaseModel, ValidationError
 
 from engine.config import MAX_TOKENS, MODEL, PROMPTS_DIR, SYSTEM_CONTEXT
 from engine.models import (
+    AssumptionChange,
+    ChallengeRound,
+    ChallengeWithHistory,
     Confidence,
     CriticTurn,
+    ProposalChanges,
     ProposerTurn,
     Round,
+    SettledChallenge,
     SummarizerTurn,
+    ThresholdChange,
     TrackedChallenge,
 )
 
@@ -96,24 +102,100 @@ def _user(content: str) -> list[MessageParam]:
     return [{"role": "user", "content": content}]
 
 
-def _json(items: list[TrackedChallenge] | list[Round]) -> str:
-    return json.dumps([item.model_dump() for item in items], indent=2)
+def _json(items: Sequence[BaseModel], exclude_none: bool = False) -> str:
+    return json.dumps([item.model_dump(exclude_none=exclude_none) for item in items], indent=2)
+
+
+def proposal_changes(previous: ProposerTurn, current: ProposerTurn) -> ProposalChanges:
+    """What differs between two proposals. Information for the Critic only: code never judges a Response by it (ADR-0001)."""
+    before = {a.id: a for a in previous.assumptions}
+    after = {a.id: a for a in current.assumptions}
+    old_criteria = {c.metric: c for c in previous.success_criteria}
+    new_criteria = {c.metric: c for c in current.success_criteria}
+    return ProposalChanges(
+        assumptions_added=[a for i, a in after.items() if i not in before],
+        assumptions_removed=[a for i, a in before.items() if i not in after],
+        assumptions_changed=[
+            AssumptionChange(id=i, before=before[i].statement, after=a.statement)
+            for i, a in after.items()
+            if i in before and before[i].statement != a.statement
+        ],
+        scope_in_added=[x for x in current.scope_in if x not in previous.scope_in],
+        scope_in_removed=[x for x in previous.scope_in if x not in current.scope_in],
+        scope_out_added=[x for x in current.scope_out if x not in previous.scope_out],
+        scope_out_removed=[x for x in previous.scope_out if x not in current.scope_out],
+        criteria_added=[c for m, c in new_criteria.items() if m not in old_criteria],
+        criteria_removed=[c for m, c in old_criteria.items() if m not in new_criteria],
+        criteria_threshold_changed=[
+            ThresholdChange(metric=m, before=old_criteria[m].threshold, after=c.threshold)
+            for m, c in new_criteria.items()
+            if m in old_criteria and old_criteria[m].threshold != c.threshold
+        ],
+    )
+
+
+def _with_history(tracked: TrackedChallenge, rounds: list[Round]) -> TrackedChallenge:
+    """An open Challenge with its Challenge History: each Round's Response and the Critic's state after it.
+
+    Settled Challenges are returned as they are.
+    """
+    if tracked.state != "open":
+        return tracked
+    cid = tracked.challenge.id
+    history = []
+    for r in rounds:
+        response = next((x for x in r.proposal.responses if x.challenge_id == cid), None)
+        critic = next((x for x in r.critic_turn.challenge_states if x.challenge_id == cid), None)
+        if response and critic:
+            history.append(ChallengeRound(
+                round=r.number, response_type=response.type, response_text=response.text,
+                critic_state=critic.state, critic_reason=critic.reason,
+            ))
+    return ChallengeWithHistory(**tracked.model_dump(), history=history)
+
+
+def _settled(tracked: TrackedChallenge, rounds: list[Round]) -> SettledChallenge:
+    """How and when a closed or escalated Challenge was settled."""
+    c = tracked.challenge
+    settled_in = next(
+        r for r in rounds for s in r.critic_turn.challenge_states if s.challenge_id == c.id and s.state != "open"
+    )
+    settled = SettledChallenge(
+        id=c.id, state="closed" if tracked.state == "closed" else "escalated",
+        settled_in_round=settled_in.number, text=c.text,
+    )
+    if tracked.state == "escalated":
+        settled.critic_reason = tracked.reason if tracked.reason.strip() else None
+        settled.who_should_answer = c.who_should_answer
+    else:
+        response = next((x for x in settled_in.proposal.responses if x.challenge_id == c.id), None)
+        if response:
+            settled.response_type, settled.response_text = response.type, response.text
+    return settled
 
 
 def propose(
     client: ModelClient,
     feature_request: str,
-    last_proposal: ProposerTurn | None,
-    open_challenges: list[TrackedChallenge],
+    rounds: list[Round],
+    challenges: list[TrackedChallenge],
     notes: list[str],
 ) -> ProposerTurn:
+    open_challenges = [t for t in challenges if t.state == "open"]
     content = f"Feature request:\n{feature_request}"
-    if last_proposal is not None:
+    if rounds:
         content += (
-            f"\n\nYour last proposal:\n{last_proposal.model_dump_json(indent=2)}"
-            f"\n\nThe Critic's open challenges:\n{_json(open_challenges)}"
-            "\n\nWrite your updated proposal, with one response for each open challenge."
+            f"\n\nYour last proposal:\n{rounds[-1].proposal.model_dump_json(indent=2)}"
+            "\n\nThe Critic's open challenges, with their history:\n"
+            + _json([_with_history(t, rounds) for t in open_challenges])
         )
+        settled = [_settled(t, rounds) for t in challenges if t.state != "open"]
+        if settled:
+            content += (
+                "\n\nSettled challenges (closed or escalated). Keep what settled them; do not undo it:\n"
+                + _json(settled, exclude_none=True)
+            )
+        content += "\n\nWrite your updated proposal, with one response for each open challenge."
     open_ids = sorted(t.challenge.id for t in open_challenges)
 
     def responds_to_open_challenges(turn: ProposerTurn) -> str | None:
@@ -131,6 +213,7 @@ def criticize(
     round_number: int,
     proposal: ProposerTurn,
     past_challenges: list[TrackedChallenge],
+    rounds: list[Round],
     notes: list[str],
     contradiction: tuple[CriticTurn, str] | None = None,
 ) -> CriticTurn:
@@ -140,7 +223,15 @@ def criticize(
         f"Feature request:\n{feature_request}"
         f"\n\nThis is round {round_number}."
         f"\n\nCurrent proposal, with the Proposer's responses:\n{proposal.model_dump_json(indent=2)}"
-        f"\n\nChallenges you raised in earlier rounds, with their states:\n{_json(past_challenges)}"
+    )
+    if rounds:
+        changes = proposal_changes(rounds[-1].proposal, proposal)
+        content += "\n\nChanges since last proposal:" + (
+            f"\n{changes.model_dump_json(indent=2, exclude_defaults=True)}" if changes != ProposalChanges() else " none"
+        )
+    past = _json([_with_history(t, rounds) for t in past_challenges])
+    content += (
+        f"\n\nChallenges you raised in earlier rounds, with their states (open ones with their history):\n{past}"
         f"\n\nGive a challenge state for each of these open challenges: {', '.join(open_ids) or '(none)'}."
     )
 

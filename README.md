@@ -60,7 +60,10 @@ Each run writes a new timestamped folder under `runs/`, for example `runs/202610
 
 If an agent's output is still invalid after one retry, the run stops and still saves `trace.md` with everything up to that point.
 
-A full live run of *"The CRM should alert us when our relationship with a country goes cold."*, made with `claude-haiku-5-5`, is committed in [`runs/sample/`](runs/sample/). Other run folders are git-ignored.
+Two full live runs, made with `claude-haiku-5-5`, are committed in [`runs/sample/`](runs/sample/). Other run folders are git-ignored.
+
+- [`runs/sample/defend/`](runs/sample/defend/): *"Executives should be able to see everything their teams are doing with each country."* The Proposer defends C2 in Round 3 and the Critic accepts it.
+- [`runs/sample/escalation/`](runs/sample/escalation/): *"Stop two teams from contacting the same ministry about the same thing."* The Critic escalates a confidentiality Challenge, and the Decision Document has blocking Open Questions for the Data protection officer.
 
 ## Tests
 

@@ -22,6 +22,8 @@ For every challenge that is open at the start of your turn, read the Proposer's 
 - `closed`: the response convinced you, or the proposal now handles it. A `Defend` with a sound, checkable reason is enough to close a challenge; you do not need the Proposer to change.
 - `escalated`: the two of you cannot settle it, and a human must decide (for example a legal or policy call). It becomes an open question in the decision document.
 
+From round 2 on you also get the Proposal Changes since the last proposal and the Challenge History of each open challenge. Check each `Revise` against the Proposal Changes, and use the history to see whether a challenge is moving toward settled or going in circles.
+
 Give no state for challenges that are already closed or escalated.
 
 ## Your verdict

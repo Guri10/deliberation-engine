@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 StopReason = Literal["satisfied", "critic_exhausted", "stalled", "round_cap"]
 ChallengeStateValue = Literal["open", "closed", "escalated"]
+ResponseType = Literal["Defend", "Revise", "Concede"]
 OpenQuestionSource = Literal["escalated", "invented fact", "stalled", "round cap", "deliberation"]
 
 
@@ -25,7 +26,7 @@ class SuccessCriterion(BaseModel):
 
 class Response(BaseModel):
     challenge_id: str
-    type: Literal["Defend", "Revise", "Concede"]
+    type: ResponseType
     text: str
     quote: str = Field("", description="The Critic's words that changed your mind. Required for Revise and Concede.")
 
@@ -77,6 +78,62 @@ class TrackedChallenge(BaseModel):
     state: ChallengeStateValue = "open"
     reason: str = ""
     raised_in_round: int
+
+
+class ChallengeRound(BaseModel):
+    """One Round of a Challenge History: the Proposer's Response and the Challenge State the Critic gave after it."""
+
+    round: int
+    response_type: ResponseType
+    response_text: str
+    critic_state: ChallengeStateValue
+    critic_reason: str
+
+
+class ChallengeWithHistory(TrackedChallenge):
+    """An open Challenge sent to an agent with its Challenge History."""
+
+    history: list[ChallengeRound]
+
+
+class SettledChallenge(BaseModel):
+    """A closed or escalated Challenge, as the Proposer sees it. Fields that don't apply are None and left out."""
+
+    id: str
+    state: Literal["closed", "escalated"]
+    settled_in_round: int
+    text: str
+    response_type: ResponseType | None = Field(None, description="Closed only: the Response in the Round it closed.")
+    response_text: str | None = None
+    critic_reason: str | None = Field(None, description="Escalated only, if the Critic gave one.")
+    who_should_answer: str | None = Field(None, description="Escalated only.")
+
+
+class AssumptionChange(BaseModel):
+    id: str
+    before: str
+    after: str
+
+
+class ThresholdChange(BaseModel):
+    metric: str
+    before: str
+    after: str
+
+
+class ProposalChanges(BaseModel):
+    """What differs between the previous and current proposal, worked out by code. Information only (ADR-0001)."""
+
+    assumptions_added: list[Assumption] = []
+    assumptions_removed: list[Assumption] = []
+    assumptions_changed: list[AssumptionChange] = []
+    scope_in_added: list[str] = []
+    scope_in_removed: list[str] = []
+    scope_out_added: list[str] = []
+    scope_out_removed: list[str] = []
+    criteria_added: list[SuccessCriterion] = []
+    criteria_removed: list[SuccessCriterion] = []
+    criteria_threshold_changed: list[ThresholdChange] = []
 
 
 class Round(BaseModel):

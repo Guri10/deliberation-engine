@@ -50,6 +50,18 @@ _Avoid_: Resolved, done, pending
 The Proposer's answer to one Challenge: Defend (keep the position), Revise (change it), or Concede (drop it).
 _Avoid_: Reply, rebuttal
 
+**Challenge History**:
+Every Response to one Challenge and every Challenge State the Critic gave it, Round by Round.
+_Avoid_: Thread, log, timeline
+
+**Settled Challenge**:
+A Challenge whose state is closed or escalated.
+_Avoid_: Resolved, done, finished
+
+**Proposal Changes**:
+What differs between the previous and current proposal (Assumptions, scope items, Success Criteria added, removed, or changed), worked out by code.
+_Avoid_: Diff, delta, edits
+
 **Verdict**:
 The Critic's signal at the end of each Round: Satisfied or Continue.
 _Avoid_: Decision, approval
