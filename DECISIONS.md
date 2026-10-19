@@ -14,6 +14,7 @@ What changed the prompts most during tuning (notes in `docs/prompt-tuning-notes.
 - Before tuning, the Proposer gave in on every challenge in Round 2 in 4 of 5 runs. I added a rule: first decide if the challenge is right. Defend when the Critic misread the proposal, asks for more than the request, or asks about a build detail.
 - Then the Critic became too easy to satisfy (one run never defined "cold"). So missing definitions now count as scope, and the Critic re-reads what changed before saying Satisfied.
 - The biggest fix was in the code, not a prompt. The Proposer was never shown the Critic's reason for keeping a challenge open, so it kept answering the old question. That is why the "goes cold" run hit the round cap.
+- Defends were still rare after #9, so I rewrote the Proposer prompt. The old "be concrete enough that someone could disagree with each item" made it add features and promise perfect thresholds, which it then had to Revise. Its Defend and Revise rules also overlapped: most build-detail challenges also counted as "cannot be built without". Now the Proposer proposes only what the request needs, Revises only when its position causes harm, breaks a system rule, or leaves out who uses the feature, what it shows, or who can see it, and Defends a different reasonable choice by saying why its own fits. Defends rose from 2% to 13% of responses, and the Critic closed all of them.
 
 ### What each agent remembers between Rounds
 

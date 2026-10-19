@@ -78,3 +78,25 @@ After #9 the agents get each open Challenge's history, Settled Challenges, and P
 - `escalation/` (two teams, same ministry): C1 escalated to the Data protection officer, with blocking Open Questions. No Defend.
 
 Known flaw in `escalation/`: one blocking Open Question repeats C1's original text, which the Proposer's Revise had already answered. Code builds escalated Open Questions from the Challenge text, not from what is still open.
+
+## Proposer rewrite (after #9)
+
+Defends were still rare, so I re-read the Proposer prompt for anything that pushed it to over-build or to Revise by default. Causes found:
+
+- "Be concrete enough that someone could disagree with each item" made proposals bigger: extra features, many assumptions, and perfect thresholds such as "zero errors". Each became a target the Proposer then had to Revise.
+- The rules contradicted each other. A build detail was a Defend case, but "leaves out something the feature cannot be built without" was a Revise case, and most build-detail Challenges fit both. "Do not repeat yourself" also worked against "keep your position".
+- A Challenge showing that a success criterion could not be measured counted as a reason to Revise the whole position.
+
+Changes: scope holds only what the request needs; only the few assumptions that change what gets built; thresholds the Proposer can defend; "cannot be built without" now means who uses the feature, what it shows, or who can see it; build details and "a different reasonable choice" are explicit Defend cases; a Defend may add a short clarification; an unmeasurable criterion is fixed on its own; Challenge History is used to Defend again with a new reason, not to give in.
+
+Results on the same 4 requests × 3 runs:
+
+| | Old prompt | New prompt |
+|---|---|---|
+| Defends, share of all responses | 1 of 66 (2%) | 9 of 67 (13%) |
+| Runs with a Defend | 1 of 12 | 5 of 12 |
+| Runs with an escalation or blocking question | 11 of 12 | 11 of 12 |
+
+All 9 Defends were honest (already covered, beyond the request, or a builder's choice), and the Critic closed every one. About 5 of 58 Revises should have been Defends. The worst: in one duplicates run the Proposer added an "undo merge" feature to make a criterion measurable, which led to more build-detail Challenges and 6 Rounds. A new request ("weekly list of contacts not spoken to recently") went from 2 of 6 runs with a Defend to 4 of 6.
+
+The committed samples in `runs/sample/` were made with the earlier Proposer prompt. They still meet every #8 check, so I kept them.
